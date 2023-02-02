@@ -1,7 +1,3 @@
-// Copyright 2022. Motty Cohen
-//
-// rest package definitions
-//
 package rest
 
 import (
@@ -16,6 +12,7 @@ func DefaultRestHandlerWrapperFunc(entry RestEntry) http.HandlerFunc {
 }
 
 // region Sortable collection of rest entries --------------------------------------------------------------------------
+
 type RestEntries []*RestEntry
 
 func (a RestEntries) Len() int {

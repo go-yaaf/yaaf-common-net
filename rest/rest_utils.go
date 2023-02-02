@@ -1,7 +1,3 @@
-// Copyright 2022. Motty Cohen
-//
-// Utility functions to extract data from HTTP REST request
-//
 package rest
 
 import (
