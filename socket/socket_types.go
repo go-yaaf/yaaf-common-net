@@ -1,7 +1,3 @@
-// Copyright 2022. Motty Cohen
-//
-// package types
-//
 package socket
 
 import (

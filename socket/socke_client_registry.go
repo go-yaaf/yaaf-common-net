@@ -1,7 +1,3 @@
-// Copyright 2022. Motty Cohen
-//
-// Default web socket client registry
-//
 package socket
 
 import (
@@ -15,17 +11,17 @@ type DefaultClientRegistry struct {
 	Connections map[string]IWSClient
 }
 
-// Initialize registry
+// Start Initialize registry
 func (r *DefaultClientRegistry) Start() {}
 
-// Register new connected client
+// RegisterClient Register new connected client
 func (r *DefaultClientRegistry) RegisterClient(wsc IWSClient) {
 	r.Lock()
 	defer r.Unlock()
 	r.Connections[wsc.ID()] = wsc
 }
 
-// Unregister disconnected client
+// UnregisterClient Unregister disconnected client
 func (r *DefaultClientRegistry) UnregisterClient(wsc IWSClient) {
 	r.Lock()
 	defer r.Unlock()
@@ -35,7 +31,7 @@ func (r *DefaultClientRegistry) UnregisterClient(wsc IWSClient) {
 	}
 }
 
-// Get number of current connected clients
+// ConnectedClients Get number of current connected clients
 func (r *DefaultClientRegistry) ConnectedClients() int {
 	r.Lock()
 	defer r.Unlock()

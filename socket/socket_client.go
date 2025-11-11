@@ -1,7 +1,3 @@
-// Copyright 2022. Motty Cohen
-//
-// Web socket client implementation
-//
 package socket
 
 /***
