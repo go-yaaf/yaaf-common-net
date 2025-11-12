@@ -2,7 +2,7 @@ package utils
 
 import (
 	"context"
-	"fmt"
+	"github.com/go-yaaf/yaaf-common-net/model"
 	"net"
 	"strings"
 	"time"
@@ -39,25 +39,45 @@ func (t *IPUtilsStruct) GeoLookupWKT(ip string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("POINT(%f %f)", res.Longitude, res.Latitude), nil
+
+	return model.NewIPGeoPoint(res.Longitude, res.Latitude).WKT(), nil
 }
 
 // AddressLookup invoke Geo IP and return address as formatted string
-func (t *IPUtilsStruct) AddressLookup(ip string) (string, error) {
+func (t *IPUtilsStruct) AddressLookup(ip string, format string) (string, error) {
+
+	if ipga, err := t.FullAddressLookup(ip); err != nil {
+		return "", err
+	} else {
+		return ipga.String(format), nil
+	}
+}
+
+// FullAddressLookup invoke Geo IP and return address as object
+func (t *IPUtilsStruct) FullAddressLookup(ip string) (*model.IPGeoAddress, error) {
 	config, err := ip2locationio.OpenConfiguration(t.apiKey)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	ipl, err := ip2locationio.OpenIPGeolocation(config)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	res, err := ipl.LookUp(ip, "")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return fmt.Sprintf("[%s], %s, %s, %s %s)", res.AS, res.CityName, res.RegionName, res.CountryName, res.ZipCode), nil
+
+	ipga := model.NewIPGeoAddress().
+		WithCountryCode(res.CountryCode).
+		WithCountryName(res.CountryName).
+		WithRegionName(res.RegionName).
+		WithCityName(res.CityName).WithASName(res.AS).
+		WithASNumber(res.Asn).
+		WithZipCode(res.ZipCode).
+		WithTimeZone(res.TimeZone)
+	return ipga, nil
 }
 
 // DnsLookup invoke DNS resolver and return comma-separated list of DNS names
