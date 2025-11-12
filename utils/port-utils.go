@@ -182,6 +182,7 @@ func (t *PortUtilsStruct) initWellKnownPorts() {
 	t.portsMap[9092] = portDesc{Key: "KASKA", Value: "Apache Kafka"}                                    // TCP
 	t.portsMap[9200] = portDesc{Key: "Elasticsearch", Value: "Elasticsearch REST API"}                  // TCP
 	t.portsMap[9899] = portDesc{Key: "SCTP", Value: "SCTP tunneling"}                                   // UDP
+	t.portsMap[10443] = portDesc{Key: "SSLVPN", Value: "Secured VPN access over SSL"}                   // TCP
 	t.portsMap[11211] = portDesc{Key: "Memcached", Value: "Memcached"}                                  // TCP
 	t.portsMap[11214] = portDesc{Key: "Memcached", Value: "Memcached Incoming SSL proxy"}               // TCP
 	t.portsMap[11215] = portDesc{Key: "Memcached", Value: "Memcached Outgoing SSL proxy"}               // TCP
