@@ -3,12 +3,15 @@ package utils
 import (
 	"context"
 	"github.com/go-yaaf/yaaf-common-net/model"
+	"github.com/go-yaaf/yaaf-common/utils/collections"
 	"net"
 	"strings"
 	"time"
 
 	"github.com/ip2location/ip2location-io-go/ip2locationio"
 )
+
+var wellKnownDNS []string
 
 type IPUtilsStruct struct {
 	apiKey string
@@ -94,4 +97,25 @@ func (t *IPUtilsStruct) DnsLookup(ip string) (string, error) {
 	} else {
 		return strings.Join(names, ", "), nil
 	}
+}
+
+// GetKnownDnsIPs This method return list of well known DNS IPs
+func (t *IPUtilsStruct) GetKnownDnsIPs() []string {
+	if len(wellKnownDNS) == 0 {
+		wellKnownDNS = make([]string, 0)
+		wellKnownDNS = append(wellKnownDNS, "8.8.8.8", "8.8.4.4")               // Google Public DNS
+		wellKnownDNS = append(wellKnownDNS, "1.1.1.1", "1.0.0.1")               // Cloudflare DNS
+		wellKnownDNS = append(wellKnownDNS, "9.9.9.9", "149.112.112.112")       // Quad9 DNS
+		wellKnownDNS = append(wellKnownDNS, "208.67.222.222", "208.67.220.220") // OpenDNS
+		wellKnownDNS = append(wellKnownDNS, "94.140.14.14", "94.140.15.15")     // AdGuard DNS
+		wellKnownDNS = append(wellKnownDNS, "77.88.8.8", "77.88.8.1")           // Yandex DNS
+		wellKnownDNS = append(wellKnownDNS, "76.76.19.19", "76.223.122.150")    // Alternate DNS
+		wellKnownDNS = append(wellKnownDNS, "185.228.168.9", "185.228.168.9")   // CleanBrowsing DNS
+	}
+	return wellKnownDNS
+}
+
+// IsKnownDnsIP check if the provided IP is in the list of well-known public DNS
+func (t *IPUtilsStruct) IsKnownDnsIP(ip string) bool {
+	return collections.Include(t.GetKnownDnsIPs(), ip)
 }
