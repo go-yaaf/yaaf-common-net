@@ -2,12 +2,11 @@ package web
 
 import (
 	"fmt"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 
 	"github.com/go-yaaf/yaaf-common/entity"
 
@@ -16,12 +15,6 @@ import (
 )
 
 var whiteList map[string]int
-
-const (
-	Unknown  int = 0
-	NoToken      = 1
-	NoApiKey     = 2
-)
 
 func init() {
 	whiteList = make(map[string]int)
@@ -42,7 +35,8 @@ func init() {
 // region REST server structure and factory method ---------------------------------------------------------------------
 
 type Server struct {
-	engine *gin.Engine
+	engine  *gin.Engine
+	version string
 }
 
 // NewRESTServer Factory method
@@ -51,7 +45,18 @@ func NewRESTServer() *Server {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.Default()
 
-	engine.Use(cors.New(cors.Config{
+	server := &Server{engine: engine, version: "1.0.0"}
+	return server
+}
+
+// WithAPIVersion set API version
+func (s *Server) WithAPIVersion(version string) *Server {
+	s.version = version
+	return s
+}
+
+func (s *Server) initMiddleware() {
+	s.engine.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"},
 		AllowHeaders:     []string{"Origin", "X-API-KEY", "X-ACCESS-TOKEN", "X-TIMEZONE-OFFSET"},
@@ -62,18 +67,14 @@ func NewRESTServer() *Server {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	engine.Use(
-		corsMiddleware(),
-		disableCache(),
-		gin.CustomRecovery(customRecovery),
-		apiKeyValidator(),
-		tokenValidator(),
-		apiVersion(),
+	s.engine.Use(
+		s.corsMiddleware(),
+		s.disableCache(),
+		gin.CustomRecovery(s.customRecovery),
+		s.apiKeyValidator(),
+		s.tokenValidator(),
+		s.apiVersion(),
 	)
-
-	return &Server{
-		engine: engine,
-	}
 }
 
 // endregion
@@ -95,7 +96,6 @@ func (s *Server) AddEndpoints(endpoints ...RestEndpoint) *Server {
 		for _, entry := range ep.RestEntries() {
 			group.Handle(entry.Method, entry.Path, entry.Handler)
 		}
-		//group.OPTIONS("/", CorsOptions)
 	}
 	return s
 }
@@ -119,6 +119,7 @@ func (s *Server) AddStaticFile(path, relativePath string) *Server {
 // Start web server
 func (s *Server) Start(port int) error {
 
+	s.initMiddleware()
 	_ = s.engine.SetTrustedProxies(nil)
 
 	if port == 0 {
@@ -133,7 +134,7 @@ func (s *Server) Start(port int) error {
 // region REST server Middlewares --------------------------------------------------------------------------------------
 
 // Fetch API key from the header and check it
-func apiKeyValidator() gin.HandlerFunc {
+func (s *Server) apiKeyValidator() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		// Skip OPTIONS
@@ -174,7 +175,7 @@ func apiKeyValidator() gin.HandlerFunc {
 }
 
 // Fetch and check token, after processing, renew token
-func tokenValidator() gin.HandlerFunc {
+func (s *Server) tokenValidator() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		// Skip OPTIONS
@@ -205,7 +206,7 @@ func tokenValidator() gin.HandlerFunc {
 			}
 		}
 
-		td := getTokenData(c)
+		td := s.getTokenData(c)
 		if td == nil {
 			_ = c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("invalid auth token for path: %s", restPath))
 			return
@@ -226,7 +227,7 @@ func tokenValidator() gin.HandlerFunc {
 }
 
 // GetTokenData extract security token data from Authorization header
-func getTokenData(c *gin.Context) *TokenData {
+func (s *Server) getTokenData(c *gin.Context) *TokenData {
 
 	token := c.GetHeader("X-ACCESS-TOKEN")
 	if len(token) == 0 {
@@ -242,14 +243,14 @@ func getTokenData(c *gin.Context) *TokenData {
 }
 
 // Add response header to disable cache
-func disableCache() gin.HandlerFunc {
+func (s *Server) disableCache() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-cache, no-store")
 	}
 }
 
 // Add custom recovery from any error
-func customRecovery(c *gin.Context, recovered any) {
+func (s *Server) customRecovery(c *gin.Context, recovered any) {
 	if err, ok := recovered.(string); ok {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("error: %s", err))
 	}
@@ -257,7 +258,7 @@ func customRecovery(c *gin.Context, recovered any) {
 }
 
 // Enable CORS
-func corsMiddleware() gin.HandlerFunc {
+func (s *Server) corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, accept, origin, Cache-Control, X-Requested-With, Content-Disposition, Content-Filename")
@@ -275,10 +276,14 @@ func corsMiddleware() gin.HandlerFunc {
 }
 
 // Add response header with API version
-func apiVersion() gin.HandlerFunc {
+func (s *Server) apiVersion() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-API-VERSION", "1.x")
+		c.Header("X-API-VERSION", s.version)
 	}
+}
+
+func (s *Server) requireKey(path string) bool {
+	return true
 }
 
 // endregion

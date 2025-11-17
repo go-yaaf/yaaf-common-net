@@ -17,10 +17,16 @@ import (
 	"github.com/go-yaaf/yaaf-common-net/utils"
 )
 
+const (
+	UNKNOWN int = 0
+	KEY         = 1
+	TOKEN       = 3
+)
+
 // RestEntry represent a single HTTP REST call
 type RestEntry struct {
-	Path, // Rest method path
-	Method string // HTTP method verb
+	Path    string          // Rest method path
+	Method  string          // HTTP method verb
 	Handler gin.HandlerFunc // Handler function
 }
 
