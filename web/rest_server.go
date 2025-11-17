@@ -37,6 +37,7 @@ func init() {
 type Server struct {
 	engine  *gin.Engine
 	version string
+	entries map[string]RestEntry
 }
 
 // NewRESTServer Factory method
@@ -45,7 +46,7 @@ func NewRESTServer() *Server {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.Default()
 
-	server := &Server{engine: engine, version: "1.0.0"}
+	server := &Server{engine: engine, version: "1.0.0", entries: make(map[string]RestEntry)}
 	return server
 }
 
@@ -95,6 +96,7 @@ func (s *Server) AddEndpoints(endpoints ...RestEndpoint) *Server {
 
 		for _, entry := range ep.RestEntries() {
 			group.Handle(entry.Method, entry.Path, entry.Handler)
+			s.entries[entry.ID()] = entry
 		}
 	}
 	return s
@@ -124,6 +126,11 @@ func (s *Server) Start(port int) error {
 
 	if port == 0 {
 		port = 8080
+	}
+
+	// Scan endpoints
+	for path, ep := range s.entries {
+		fmt.Println(path, ep.ID())
 	}
 
 	return s.engine.Run(fmt.Sprintf(":%d", port))

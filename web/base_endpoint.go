@@ -30,6 +30,10 @@ type RestEntry struct {
 	Handler gin.HandlerFunc // Handler function
 }
 
+func (b *RestEntry) ID() string {
+	return fmt.Sprintf("%s_%s", b.Method, b.Path)
+}
+
 // RestEndpoint is a group of RestEntry
 type RestEndpoint interface {
 	Path() string             // Rest method path
