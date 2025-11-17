@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -30,6 +31,19 @@ func TokenUtils() *TokenUtilsStruct {
 		tokenUtilsSingleton = &TokenUtilsStruct{}
 	})
 	return tokenUtilsSingleton
+}
+
+func (t *TokenUtilsStruct) WithSecrets(apiSecret, signingKey string) *TokenUtilsStruct {
+	if len(apiSecret) < 32 {
+		panic(errors.New("api secret too short"))
+	}
+	tokenApiSecret = []byte(apiSecret[:32])
+
+	if len(signingKey) < 32 {
+		panic(errors.New("signing key too short"))
+	}
+	tokenSigningKy = []byte(signingKey[:32])
+	return t
 }
 
 // region Access Token parsing helpers ---------------------------------------------------------------------------------
