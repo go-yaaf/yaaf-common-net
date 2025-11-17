@@ -96,7 +96,7 @@ func (s *Server) AddEndpoints(endpoints ...RestEndpoint) *Server {
 
 		for _, entry := range ep.RestEntries() {
 			group.Handle(entry.Method, entry.Path, entry.Handler)
-			s.entries[entry.ID()] = entry
+			s.entries[entry.ID(group.BasePath())] = entry
 		}
 	}
 	return s
@@ -130,7 +130,7 @@ func (s *Server) Start(port int) error {
 
 	// Scan endpoints
 	for path, ep := range s.entries {
-		fmt.Println(path, ep.ID())
+		fmt.Println(path, "->", ep.Method, ep.Path)
 	}
 
 	return s.engine.Run(fmt.Sprintf(":%d", port))
