@@ -19,7 +19,7 @@ import (
 
 const (
 	UNKNOWN int = 0
-	KEY         = 1
+	APIKEY      = 1
 	TOKEN       = 3
 )
 
@@ -28,10 +28,12 @@ type RestEntry struct {
 	Path    string          // Rest method path
 	Method  string          // HTTP method verb
 	Handler gin.HandlerFunc // Handler function
+	Skip    int             // Skip validation
+	Role    int             // Role flags
 }
 
 func (b *RestEntry) ID(base string) string {
-	return fmt.Sprintf("%s_%s%s", b.Method, base, b.Path)
+	return fmt.Sprintf("%s %s%s", b.Method, base, b.Path)
 }
 
 // RestEndpoint is a group of RestEntry

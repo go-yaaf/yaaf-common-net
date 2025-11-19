@@ -18,6 +18,9 @@ import (
 var tokenApiSecret = []byte{0x47, 0x30, 0x30, 0x78, 0x77, 0x30, 0x72, 0x6b, 0x4c, 0x69, 0x67, 0x68, 0x74, 0x63, 0x4c, 0x40, 0x75, 0x64, 0x53, 0x33, 0x43, 0x52, 0x33, 0x54, 0x4b, 0x33, 0x59, 0x74, 0x30, 0x4b, 0x65, 0x4f}
 var tokenSigningKy = []byte{0x40, 0x79, 0x61, 0x46, 0x6c, 0x69, 0x67, 0x68, 0x74, 0x73, 0x40, 0x75, 0x64, 0x53, 0x33, 0x43, 0x52, 0x33, 0x54, 0x40, 0x50, 0x69, 0x4b, 0x33, 0x59, 0x74, 0x30, 0x4b, 0x65, 0x4f, 0x33, 0x32}
 
+//var tokenApiSecret = []byte{}
+//var tokenSigningKy = []byte{}
+
 type TokenUtilsStruct struct {
 }
 
@@ -56,8 +59,10 @@ type TokenClaims struct {
 // CreateToken build JWT token from Token Data structure
 func (t *TokenUtilsStruct) CreateToken(td *TokenData) (string, error) {
 	claims := TokenClaims{}
+	claims.AccountId = td.AccountId
 	claims.SubjectId = td.SubjectId
 	claims.SubjectType = td.SubjectType
+	claims.SubjectRole = td.SubjectRole
 	claims.Status = td.Status
 	claims.ExpiresIn = td.ExpiresIn
 	claims.Subject = td.SubjectId
@@ -81,8 +86,10 @@ func (t *TokenUtilsStruct) ParseToken(tokenString string) (*TokenData, error) {
 	// Validate the token and extract the claims
 	if claims, ok := token.Claims.(*TokenClaims); ok && token.Valid {
 		return &TokenData{
+			AccountId:   claims.AccountId,
 			SubjectId:   claims.SubjectId,
 			SubjectType: claims.SubjectType,
+			SubjectRole: claims.SubjectRole,
 			Status:      claims.Status,
 			ExpiresIn:   claims.ExpiresIn,
 		}, nil
@@ -97,12 +104,22 @@ func (t *TokenUtilsStruct) ParseToken(tokenString string) (*TokenData, error) {
 
 // CreateApiKey generate API Key from application name
 func (t *TokenUtilsStruct) CreateApiKey(appName string) (string, error) {
+
 	return encrypt(appName)
 }
 
 // ParseApiKey extract application name from API key
 func (t *TokenUtilsStruct) ParseApiKey(apiKey string) (string, error) {
 	return decrypt(apiKey)
+}
+
+func (t *TokenUtilsStruct) ensureKeys() {
+	if len(tokenApiSecret) < 32 {
+		panic(errors.New("encryption secret is not set, please use WithSecrets to set it"))
+	}
+	if len(tokenSigningKy) < 32 {
+		panic(errors.New("encryption signing key is not set, please use WithSecrets to set it"))
+	}
 }
 
 // endregion

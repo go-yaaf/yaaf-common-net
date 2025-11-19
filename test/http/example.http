@@ -1,0 +1,47 @@
+
+### Get root
+GET http://{{host}}/v1/
+Content-Type: application/json
+X-API-KEY: {{api-key}}
+X-Access-Token: {{access-token}}
+
+### Get heroes
+GET http://{{host}}/v1/hero/heroes
+Content-Type: application/json
+X-API-KEY: {{api-key}}
+X-Access-Token: {{access-token}}
+
+
+### Update hero
+PATCH http://{{host}}/v1/hero/heroes/12345
+Content-Type: application/json
+X-API-KEY: {{api-key}}
+X-Access-Token: {{access-token}}
+
+
+### Update logo
+PATCH http://{{host}}/v1/hero/heroes/logo
+Content-Type: application/json
+X-API-KEY: {{api-key}}
+X-Access-Token: {{access-token}}
+
+### Get hero logo
+GET http://{{host}}/v1/hero/heroes/logo/287384
+Content-Type: application/json
+X-API-KEY: {{api-key}}
+X-Access-Token: {{access-token}}
+
+
+### DELETE hero - only MANAGEMENT can do that
+DELETE http://{{host}}/v1/hero/heroes/12345
+Content-Type: application/json
+X-API-KEY: {{api-key}}
+X-Access-Token: {{access-token}}
+
+
+### GET hero - only FINANCE can do that
+GET http://{{host}}/v1/hero/heroes/12345
+Content-Type: application/json
+X-API-KEY: {{api-key}}
+X-Access-Token: {{access-token}}
+

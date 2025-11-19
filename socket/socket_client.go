@@ -1,19 +1,19 @@
 package socket
 
-/***
+/*
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/go-yaaf/yaaf-common/config"
-	"github.com/go-yaaf/yaaf-common/metrics"
-	"github.com/go-yaaf/yaaf-common/utils"
-	. "github.com/go-yaaf/yaaf-common/logger"
-	"github.com/gorilla/websocket"
 	"net"
 	"net/url"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/go-yaaf/yaaf-common/config"
+	. "github.com/go-yaaf/yaaf-common/logger"
+	"github.com/go-yaaf/yaaf-common/utils"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -53,8 +53,6 @@ type wsClient struct {
 	wcg               chan bool
 	conn              *websocket.Conn // Pointer to the underlying web socket connection
 }
-
-func NewWsClient()
 
 type WsClientConfig struct {
 	Id             string
@@ -325,7 +323,6 @@ func (c *wsClient) run() {
 			ts, _ := strconv.ParseInt(s, 10, 64)
 			tsNow := time.Now().UnixNano() / int64(time.Millisecond)
 			latencyMs := tsNow - ts
-			Trace("[%s] PONG control message received. ws latency: %d ms", c.id, latencyMs)
 			_ = c.conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(config.GetBaseConfig().WsPongTimeoutSec())))
 
 			if c.onPongReceived != nil {
@@ -376,7 +373,7 @@ func (c *wsClient) setIsClosed() (v bool) {
 	return
 }
 
-//  if onMessageReceived callback provided, invoke it
+// if onMessageReceived callback provided, invoke it
 func (c *wsClient) handleMessageReceived(m IWSMessage, sizeInBytes int) {
 
 	invokeHandlerWrapper := func(handler IWSMessageHandler) {
@@ -406,4 +403,5 @@ func (c *wsClient) handleMessageReceived(m IWSMessage, sizeInBytes int) {
 		}
 	}
 
-} ***/
+}
+*/

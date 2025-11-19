@@ -2,13 +2,10 @@ package web
 
 import (
 	"fmt"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/go-yaaf/yaaf-common/entity"
 	"net/http"
 	"strings"
-	"time"
-
-	"github.com/go-yaaf/yaaf-common/entity"
 
 	. "github.com/go-yaaf/yaaf-common-net/model"
 	"github.com/go-yaaf/yaaf-common-net/utils"
@@ -33,10 +30,12 @@ func init() {
 }
 
 // region REST server structure and factory method ---------------------------------------------------------------------
+var serverInst *Server = nil
 
 type Server struct {
 	engine  *gin.Engine
 	version string
+	appName string
 	entries map[string]RestEntry
 }
 
@@ -46,36 +45,126 @@ func NewRESTServer() *Server {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.Default()
 
+	engine.Use(
+		corsMiddleware(),
+		disableCache(),
+		gin.CustomRecovery(customRecovery),
+		apiKeyValidator(),
+		tokenValidator(),
+		apiVersion(),
+	)
 	server := &Server{engine: engine, version: "1.0.0", entries: make(map[string]RestEntry)}
-	return server
+	serverInst = server
+	return serverInst
 }
 
-// WithAPIVersion set API version
+// WithAppName sets the application name to check after parsing the API Key
+func (s *Server) WithAppName(appName string) *Server {
+	s.appName = appName
+	return s
+}
+
+// WithAPIVersion set API version to inject to the header: X-API-VERSION
 func (s *Server) WithAPIVersion(version string) *Server {
 	s.version = version
 	return s
 }
 
-func (s *Server) initMiddleware() {
-	s.engine.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"},
-		AllowHeaders:     []string{"Origin", "X-API-KEY", "X-ACCESS-TOKEN", "X-TIMEZONE-OFFSET"},
-		ExposeHeaders:    []string{"Content-Length", "X-API-KEY", "X-ACCESS-TOKEN", "X-TIMEZONE-OFFSET"},
-		AllowCredentials: true,
-		AllowWebSockets:  true,
-		AllowWildcard:    true,
-		MaxAge:           12 * time.Hour,
-	}))
+// WithSecrets set token encryption secrets
+func (s *Server) WithSecrets(apiSecret, signingKey string) *Server {
+	utils.TokenUtils().WithSecrets(apiSecret, signingKey)
+	return s
+}
 
-	s.engine.Use(
-		s.corsMiddleware(),
-		s.disableCache(),
-		gin.CustomRecovery(s.customRecovery),
-		s.apiKeyValidator(),
-		s.tokenValidator(),
-		s.apiVersion(),
-	)
+// Extract SKIP validations flag from the current entry
+func (s *Server) getEntrySkipFlag(method, path string) int {
+
+	// First path: try match static path segments first
+	for k, v := range s.entries {
+		if v.Method == method {
+			parts := strings.Fields(k)
+			pt := parts[1]
+			if strings.Contains(pt, ":") {
+				continue
+			}
+			if s.matchExactPath(pt, path) {
+				return v.Skip
+			}
+		}
+	}
+
+	// Now, try match parametrized path
+	for k, v := range s.entries {
+		if v.Method == method {
+			parts := strings.Fields(k)
+			pt := parts[1]
+			if strings.Contains(pt, ":") {
+				if s.matchTemplatePath(pt, path) {
+					return v.Skip
+				}
+			}
+		}
+	}
+	return 0
+}
+
+// Extract Role flags from the current entry
+func (s *Server) getEntryRoleFlag(method, path string) int {
+
+	// First path: try match static path segments first
+	for k, v := range s.entries {
+		if v.Method == method {
+			parts := strings.Fields(k)
+			pt := parts[1]
+			if strings.Contains(pt, ":") {
+				continue
+			}
+			if s.matchExactPath(pt, path) {
+				return v.Role
+			}
+		}
+	}
+
+	// Now, try match parametrized path
+	for k, v := range s.entries {
+		if v.Method == method {
+			parts := strings.Fields(k)
+			pt := parts[1]
+			if strings.Contains(pt, ":") {
+				if s.matchTemplatePath(pt, path) {
+					return v.Role
+				}
+			}
+		}
+	}
+	return 0
+}
+
+// match exact path
+func (s *Server) matchExactPath(path, actual string) bool {
+	return path == actual
+}
+
+// match template path
+func (s *Server) matchTemplatePath(template, actual string) bool {
+
+	templates := strings.Split(template, "/")
+	segments := strings.Split(actual, "/")
+	if len(templates) != len(segments) {
+		return false
+	}
+	for i := 0; i < len(templates); i++ {
+		if templates[i] == segments[i] {
+			continue
+		} else if strings.HasPrefix(templates[i], ":") {
+			continue
+		} else {
+			return false
+		}
+	}
+
+	// All parts feet
+	return true
 }
 
 // endregion
@@ -98,8 +187,15 @@ func (s *Server) AddEndpoints(endpoints ...RestEndpoint) *Server {
 			group.Handle(entry.Method, entry.Path, entry.Handler)
 			s.entries[entry.ID(group.BasePath())] = entry
 		}
+		group.OPTIONS("/", CorsOptions)
 	}
 	return s
+}
+
+func CorsOptions(c *gin.Context) {
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, DELETE, POST, PUT, PATCH")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	c.Next()
 }
 
 // AddStaticEndpoint add static file endpoint (for documentation)
@@ -121,16 +217,10 @@ func (s *Server) AddStaticFile(path, relativePath string) *Server {
 // Start web server
 func (s *Server) Start(port int) error {
 
-	s.initMiddleware()
 	_ = s.engine.SetTrustedProxies(nil)
 
 	if port == 0 {
 		port = 8080
-	}
-
-	// Scan endpoints
-	for path, ep := range s.entries {
-		fmt.Println(path, "->", ep.Method, ep.Path)
 	}
 
 	return s.engine.Run(fmt.Sprintf(":%d", port))
@@ -141,7 +231,7 @@ func (s *Server) Start(port int) error {
 // region REST server Middlewares --------------------------------------------------------------------------------------
 
 // Fetch API key from the header and check it
-func (s *Server) apiKeyValidator() gin.HandlerFunc {
+func apiKeyValidator() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		// Skip OPTIONS
@@ -150,39 +240,32 @@ func (s *Server) apiKeyValidator() gin.HandlerFunc {
 			return
 		}
 
-		// Get path and strip version
+		// Get path and check if we need to skip API key
 		restPath := strings.ToLower(c.Request.URL.Path)
-		if strings.HasPrefix(restPath, "/v1/") {
-			restPath = strings.Replace(restPath, "/v1/", "/", 1)
-		}
-
-		// Handle root
-		if restPath == "/" || len(restPath) == 0 {
+		flag := serverInst.getEntrySkipFlag(c.Request.Method, restPath)
+		if flag&APIKEY == APIKEY {
 			c.Next()
 			return
 		}
 
-		// Handle white-listed prefix (no need for token or API key)
-		for path, value := range whiteList {
-			if strings.HasPrefix(restPath, path) {
-				if value > 1 {
-					c.Next()
-					return
-				}
-			}
-		}
-
+		// Extract the API KEY from the header
 		apiKey := c.GetHeader("X-API-KEY")
-		if _, err := utils.TokenUtils().ParseApiKey(apiKey); err != nil {
+
+		// Parse API KEY and check if app name should be valid
+		if appName, err := utils.TokenUtils().ParseApiKey(apiKey); err != nil {
 			_ = c.AbortWithError(http.StatusForbidden, fmt.Errorf("invalid API key for path: %s", restPath))
 		} else {
-			c.Next()
+			if len(serverInst.appName) > 0 && serverInst.appName != appName {
+				_ = c.AbortWithError(http.StatusForbidden, fmt.Errorf("invalid API key for path: %s", restPath))
+			} else {
+				c.Next()
+			}
 		}
 	}
 }
 
 // Fetch and check token, after processing, renew token
-func (s *Server) tokenValidator() gin.HandlerFunc {
+func tokenValidator() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		// Skip OPTIONS
@@ -191,35 +274,31 @@ func (s *Server) tokenValidator() gin.HandlerFunc {
 			return
 		}
 
-		// Get path and strip version
+		// Get path and check if we need to skip Access Token
 		restPath := strings.ToLower(c.Request.URL.Path)
-		if strings.HasPrefix(restPath, "/v1/") {
-			restPath = strings.Replace(restPath, "/v1/", "/", 1)
-		}
-
-		// Handle root
-		if restPath == "/" || len(restPath) == 0 {
+		flag := serverInst.getEntrySkipFlag(c.Request.Method, restPath)
+		if flag&TOKEN == TOKEN {
 			c.Next()
 			return
 		}
 
-		// Handle white-listed prefix (no need for token or API key)
-		for path, value := range whiteList {
-			if strings.HasPrefix(restPath, path) {
-				if value > 0 {
-					c.Next()
-					return
-				}
-			}
-		}
-
-		td := s.getTokenData(c)
+		// Extract the user token from the header: X-ACCESS-TOKEN
+		td := getTokenData(c)
 		if td == nil {
 			_ = c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("invalid auth token for path: %s", restPath))
 			return
 		}
 
-		// Set new token
+		// Get path and check if role guard exists
+		roles := serverInst.getEntryRoleFlag(c.Request.Method, restPath)
+		if roles > 0 {
+			if roles&td.SubjectRole == 0 {
+				_ = c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("user role not authorized for path: %s", restPath))
+				return
+			}
+		}
+
+		// Rewrite new token with new expiration time (30 minutes)
 		if td.ExpiresIn > 0 {
 			td.ExpiresIn = int64(entity.Now() + 1000*60*30)
 		}
@@ -234,7 +313,7 @@ func (s *Server) tokenValidator() gin.HandlerFunc {
 }
 
 // GetTokenData extract security token data from Authorization header
-func (s *Server) getTokenData(c *gin.Context) *TokenData {
+func getTokenData(c *gin.Context) *TokenData {
 
 	token := c.GetHeader("X-ACCESS-TOKEN")
 	if len(token) == 0 {
@@ -250,14 +329,14 @@ func (s *Server) getTokenData(c *gin.Context) *TokenData {
 }
 
 // Add response header to disable cache
-func (s *Server) disableCache() gin.HandlerFunc {
+func disableCache() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-cache, no-store")
 	}
 }
 
 // Add custom recovery from any error
-func (s *Server) customRecovery(c *gin.Context, recovered any) {
+func customRecovery(c *gin.Context, recovered any) {
 	if err, ok := recovered.(string); ok {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("error: %s", err))
 	}
@@ -265,7 +344,7 @@ func (s *Server) customRecovery(c *gin.Context, recovered any) {
 }
 
 // Enable CORS
-func (s *Server) corsMiddleware() gin.HandlerFunc {
+func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, accept, origin, Cache-Control, X-Requested-With, Content-Disposition, Content-Filename")
@@ -283,14 +362,10 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 }
 
 // Add response header with API version
-func (s *Server) apiVersion() gin.HandlerFunc {
+func apiVersion() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-API-VERSION", s.version)
+		c.Header("X-API-VERSION", "s.version")
 	}
-}
-
-func (s *Server) requireKey(path string) bool {
-	return true
 }
 
 // endregion
