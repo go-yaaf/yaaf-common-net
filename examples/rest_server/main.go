@@ -33,8 +33,8 @@ func main() {
 	restServer.WithAppName("rest-server-example")
 
 	// Add REST endpoints
-	restServer.AddEndpoints(hero.NewListOfHeroEndPoints()...)
-	restServer.AddEndpoints(sample.NewListOfSampleEndPoints()...)
+	restServer.AddRESTEndpoints(hero.NewListOfHeroEndPoints()...)
+	restServer.AddRESTEndpoints(sample.NewListOfSampleEndPoints()...)
 
 	// Add static documentation endpoint
 	restServer.AddStaticEndpoint("/doc", "./doc")
