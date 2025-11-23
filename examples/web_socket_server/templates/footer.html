@@ -1,0 +1,144 @@
+{{define "footer"}}
+
+<!--<footer class="bg-dark text-white text-center p-2 flex-shrink-0">-->
+<!--    <div class="container copyright text-center mt-4">-->
+<!--    </div>-->
+<!--</footer>-->
+
+<footer class="bg-dark text-white text-center p-2">
+    <small>Data: OpenSky Network – Demo only</small>
+</footer>
+
+<!-- Vendor JS Files -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.js"></script>
+
+<script>
+    // Initialize the map (center around Eastern Med as example)
+    const map = L.map('map').setView([32.0, 35.0], 7);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 10,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const statusEl = document.getElementById('status');
+
+    // Reusable airplane icons (yellow in air, red on ground)
+    const planeIconAir = L.divIcon({
+        className: 'plane-icon plane-air',
+        html: '✈'
+    });
+
+    const planeIconGround = L.divIcon({
+        className: 'plane-icon plane-ground',
+        html: '✈'
+    });
+
+    // markers keyed by ICAO24
+    const planeMarkers = {};
+
+    function upsertPlaneMarker(plane) {
+        const key = plane.icao24 || (plane.latitude + ',' + plane.longitude);
+        const icon = plane.on_ground ? planeIconGround : planeIconAir;
+        const heading = plane.heading || 0;
+
+        if (!planeMarkers[key]) {
+            // Create rotated marker
+            const marker = L.marker([plane.latitude, plane.longitude], {
+                icon: icon,
+                rotationAngle: heading,
+                rotationOrigin: 'center center',
+                title: plane.callsign || plane.icao24
+            }).addTo(map);
+
+            marker.bindPopup(`
+              <div>
+                <strong>${plane.callsign || 'N/A'}</strong><br/>
+                ICAO24: ${plane.icao24}<br/>
+                Country: ${plane.country}<br/>
+                Alt: ${plane.altitude.toFixed(0)} m<br/>
+                Speed: ${plane.velocity.toFixed(0)} m/s<br/>
+                Heading: ${plane.heading.toFixed(0)}°
+              </div>
+            `);
+
+            planeMarkers[key] = marker;
+        } else {
+            // Update marker position, rotation, and color
+            const marker = planeMarkers[key];
+            marker.setLatLng([plane.latitude, plane.longitude]);
+            marker.setRotationAngle(heading);
+            marker.setIcon(icon);
+
+            marker.setPopupContent(`
+              <div>
+                <strong>${plane.callsign || 'N/A'}</strong><br/>
+                ICAO24: ${plane.icao24}<br/>
+                Country: ${plane.country}<br/>
+                Alt: ${plane.altitude.toFixed(0)} m<br/>
+                Speed: ${plane.velocity.toFixed(0)} m/s<br/>
+                Heading: ${plane.heading.toFixed(0)}°
+              </div>
+            `);
+        }
+    }
+
+    function connectWS() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = protocol + '//' + location.host + '/v1/ws/airplanes';
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            statusEl.textContent = 'Connected';
+            statusEl.className = 'text-success';
+        };
+
+        ws.onclose = () => {
+            statusEl.textContent = 'Disconnected – retrying…';
+            statusEl.className = 'text-danger';
+            setTimeout(connectWS, 3000);
+        };
+
+        ws.onerror = (err) => {
+            console.error('WebSocket error:', err);
+            statusEl.textContent = 'Error – see console';
+            statusEl.className = 'text-danger';
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                console.log('Received message:', event.data);
+                const msg = JSON.parse(event.data);
+                console.log('Parsed message:', msg);
+                if (msg.type !== 'planes') {
+                    return;
+                }
+
+                // For demo, you might want to clear markers not in current batch.
+                const seen = new Set();
+
+                msg.planes.forEach(p => {
+                    if (!p.latitude || !p.longitude) return;
+                    upsertPlaneMarker(p);
+                    const key = p.icao24 || (p.latitude + ',' + p.longitude);
+                    seen.add(key);
+                });
+
+                // Optionally remove markers no longer present
+                for (const key in planeMarkers) {
+                    if (!seen.has(key)) {
+                        map.removeLayer(planeMarkers[key]);
+                        delete planeMarkers[key];
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing message:', e);
+            }
+        };
+    }
+
+    connectWS();
+</script>
+{{end}}

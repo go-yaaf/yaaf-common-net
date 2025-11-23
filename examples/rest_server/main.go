@@ -21,7 +21,7 @@ func init() {
 func main() {
 
 	// Create the new instance of the REST server
-	restServer := web.NewRESTServer()
+	restServer := web.NewWebServer()
 
 	// Set API Version (usually it will be provided by the configuration)
 	restServer.WithAPIVersion("1.0.1")

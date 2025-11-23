@@ -1,4 +1,4 @@
-package socket
+package web
 
 import (
 	"encoding/json"
@@ -11,43 +11,42 @@ const (
 
 // IWSMessage is a Web socket message header interface:
 type IWSMessage interface {
-	GetOpCode() int       // Get message op-code
-	GetMessageID() uint64 // Get message unique Id
-	GetSessionID() string // Get session Id
-	GetPayload() any      // Get arbitrary message payload
+	MessageCode() int  // Get message op-code
+	MessageID() uint64 // Get message unique ID
+	SessionID() string // Get session ID
+	Payload() any      // Get arbitrary message payload
 }
 
 // region Web Socket message header ------------------------------------------------------------------------------------
 
 type WSMessageHeader struct {
 	OpCode    int
-	MessageID uint64
-	SessionID string
+	MessageId uint64
+	SessionId string
 }
 
-// Get op-code
-func (mb WSMessageHeader) GetOpCode() int { return mb.OpCode }
+// MessageCode get web-socket message op-code
+func (mb WSMessageHeader) MessageCode() int { return mb.OpCode }
 
-// Get message ID
-func (mb WSMessageHeader) GetMessageID() uint64 { return mb.MessageID }
+// MessageID get web-socket message ID
+func (mb WSMessageHeader) MessageID() uint64 { return mb.MessageId }
 
-// Get session ID
-func (mb WSMessageHeader) GetSessionID() string { return mb.SessionID }
+// SessionID get web-socket session ID
+func (mb WSMessageHeader) SessionID() string { return mb.SessionId }
 
 // endregion
 
 // region Web Socket Ping Pong messages --------------------------------------------------------------------------------
 
-// PONG messaged handler received from client
+// PongReceivedCb PONG message handler received from client
 type PongReceivedCb func(sessionId, pongMessage string, latencyMs int64)
 
-// PING message
+// WSPingMessage message sent from client (for keep-alive)
 type WSPingMessage struct {
 	WSMessageHeader
 }
 
-// PING message has no payload
-func (mp WSPingMessage) GetPayload() interface{} { return nil }
+func (mp WSPingMessage) Payload() interface{} { return nil }
 
 func NewWsPingMessage() IWSMessage {
 	return WSPingMessage{WSMessageHeader: WSMessageHeader{OpCode: WsPingOpCode}}
@@ -64,7 +63,7 @@ type WSRawMessage struct {
 	Body []byte
 }
 
-func (m *WSRawMessage) GetPayload() any { return m.Body }
+func (m *WSRawMessage) Payload() any { return m.Body }
 
 // endregion
 
@@ -85,11 +84,11 @@ type WSConnectParams struct {
 	Host               string      // url host + port
 	WriteBufferSize    int         // Write buffer size (if not provided use the default 8K buffer)
 	ReadBufferSize     int         // Read buffer size (if not provided use the default 8K buffer)
-	CompressionEnabled bool        // Tru to enable compression
+	CompressionEnabled bool        // Try to enable compression
 	Header             http.Header // List of HTTP headers
 }
 
-// Web socket client interface
+// IWSClient is a Web socket client interface
 type IWSClient interface {
 	ID() string                            // Socket client unique ID
 	QueryParams() map[string]string        // Query parameters from the REST call before protocol upgrade
@@ -134,7 +133,7 @@ func (_ JsonDecoder) Decode(buffer []byte) (msg IWSMessage, err error) {
 		return nil, err
 	}
 
-	if mf, ok := messageFactories[bm.GetOpCode()]; ok {
+	if mf, ok := messageFactories[bm.MessageCode()]; ok {
 		msg = mf()
 		if err = json.Unmarshal(buffer, msg); err != nil {
 			return nil, err
@@ -142,9 +141,9 @@ func (_ JsonDecoder) Decode(buffer []byte) (msg IWSMessage, err error) {
 	} else {
 		msg = &WSRawMessage{
 			WSMessageHeader: WSMessageHeader{
-				OpCode:    bm.GetOpCode(),
-				MessageID: bm.GetMessageID(),
-				SessionID: bm.GetSessionID(),
+				OpCode:    bm.MessageCode(),
+				MessageId: bm.MessageID(),
+				SessionId: bm.SessionID(),
 			},
 			Body: buffer,
 		}
@@ -154,19 +153,9 @@ func (_ JsonDecoder) Decode(buffer []byte) (msg IWSMessage, err error) {
 
 // endregion
 
-// Web socket message handler
-type IWSMessageHandler interface {
-	Handle(m IWSMessage, rw IWSClient) error
-}
+type WSMessageHandler func(m IWSMessage, rw IWSClient) error
 
-// Web socket message handler entry
-type WSHandlerEntry struct {
-	OpCode  int
-	Handler IWSMessageHandler
-	Metrics bool
-}
-
-// Web socket client registry
+// IWSClientRegistry is aWeb socket client registry
 type IWSClientRegistry interface {
 	Start()
 	RegisterClient(c IWSClient)
@@ -174,31 +163,16 @@ type IWSClientRegistry interface {
 	ConnectedClients() int
 }
 
-// Web socket endpoint configuration
-type WSEndpointConfig struct {
-	Path              string            // Web socket endpoint path
-	Handlers          []WSHandlerEntry  // Web socket handlers
-	Registry          IWSClientRegistry // Web socket client registry
-	CustomDecoder     IMessageDecoder   // Custom message decoder
-	EnablePingPong    bool              // Flag to enable socket PING-PONG
-	EnableMetrics     bool              // Flag to enable metrics
-	KeepAliveInterval int               // Keep alive interval in seconds (-1 for no keep-alive)
+type WSClientFactory func() IWSClient
+
+// IWSEndpointConfig ia a Web socket endpoint configuration interface
+type IWSEndpointConfig interface {
+	Path() string                       // Web socket endpoint path
+	Handlers() map[int]WSMessageHandler // Web socket handlers mapper
+	Registry() IWSClientRegistry        // Web socket client registry
+	CustomDecoder() IMessageDecoder     // Custom message decoder
+	EnablePingPong() bool               // Flag to enable socket PING-PONG
+	KeepAliveInterval() int             // Keep alive interval in seconds (-1 for no keep-alive)
+	ClientFactory() WSClientFactory     // Web-socket client factory method
+
 }
-
-// region Web Socket endpoints config ----------------------------------------------------------------------------------
-
-type IWebSocketEndpoint interface {
-	Entries() []WSEndpointConfig
-}
-
-type WebSocketEndpoint struct {
-	entries []WSEndpointConfig
-}
-
-func (r WebSocketEndpoint) Entries() []WSEndpointConfig { return r.entries }
-
-func NewWebSocketEndpoint(entries []WSEndpointConfig) WebSocketEndpoint {
-	return WebSocketEndpoint{entries: entries}
-}
-
-// endregion

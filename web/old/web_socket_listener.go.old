@@ -1,0 +1,166 @@
+package web
+
+import (
+	"fmt"
+	"github.com/gorilla/websocket"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/go-yaaf/yaaf-common/logger"
+	"github.com/go-yaaf/yaaf-common/utils"
+	"github.com/google/uuid"
+)
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:    1024,
+	WriteBufferSize:   1024,
+	EnableCompression: true,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+type WSListener struct {
+	registry          IWSClientRegistry
+	decoder           IMessageDecoder
+	handlers          map[int]WSMessageHandler
+	enablePinPong     bool
+	keepAliveInterval int
+}
+
+func NewListener(cfg IWSEndpointConfig) (wsh *WSListener) {
+	wsh = &WSListener{
+		registry: func() IWSClientRegistry {
+			if cfg.Registry() == nil {
+				return &DefaultClientRegistry{Connections: map[string]IWSClient{}}
+			} else {
+				return cfg.Registry()
+			}
+		}(),
+		handlers:          make(map[int]WSMessageHandler, len(cfg.Handlers())),
+		enablePinPong:     cfg.EnablePingPong(),
+		keepAliveInterval: cfg.KeepAliveInterval(),
+	}
+
+	// Set message decoder
+	if cfg.CustomDecoder != nil {
+		wsh.decoder = cfg.CustomDecoder()
+	} else {
+		wsh.decoder = NewJsonDecoder()
+	}
+
+	for k, handlerEntry := range cfg.Handlers() {
+		wsh.handlers[k] = handlerEntry
+	}
+	return
+}
+
+func (h *WSListener) ListenForWSConnections(w http.ResponseWriter, r *http.Request) {
+
+	connectedClients := h.registry.ConnectedClients()
+	maxConnectedClients := 10000
+
+	if connectedClients == maxConnectedClients {
+		http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+		return
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		logger.Error("error upgrading connection from %s to Web Socket: %s", r.RemoteAddr, err.Error())
+		return
+	}
+
+	// Fetch value of request's ctx for "client_id" key/value pair.
+	// if found, will be used as client connection id. otherwise, generated id will be used.
+	clientId := uuid.New().String()
+	qParams := make(map[string]string)
+
+	// Get client id from context
+	if r.Context().Value("clientId") != nil {
+		clientId = r.Context().Value("clientId").(string)
+	}
+
+	// Get extra query params from context
+	if r.Context().Value("params") != nil {
+		qParams = r.Context().Value("params").(map[string]string)
+	}
+
+	// Get query params
+	for k, v := range r.URL.Query() {
+		qParams[k] = v[0]
+	}
+
+	// Inject HTTP headers to the params
+	for k, v := range r.Header {
+		qParams[k] = fmt.Sprintf("%v", v)
+	}
+
+	conn.EnableWriteCompression(true)
+
+	tcpConn := conn.NetConn().(*net.TCPConn)
+	_ = tcpConn.SetLinger(0)
+	_ = tcpConn.SetNoDelay(true)
+	_ = tcpConn.SetWriteBuffer(1048576)
+	_ = tcpConn.SetReadBuffer(1048576)
+
+	if h.keepAliveInterval != -1 {
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(time.Second * time.Duration(h.keepAliveInterval))
+	}
+
+	wsCgf := WSClientConfig{
+		Id:              clientId,
+		WsConn:          conn,
+		OnMsgRvd:        h.onMessageReceived,
+		OnDisconnected:  h.onDisconnected,
+		MessageDecoder:  h.decoder,
+		QueryParams:     qParams,
+		PingPongEnabled: h.enablePinPong,
+	}
+	wsClient := NewWsClient(wsCgf)
+	h.registry.RegisterClient(wsClient)
+	return
+}
+
+func (h *WSListener) onMessageReceived(ws IWSClient, m IWSMessage, bytes int) {
+
+	var (
+		ok      bool
+		handler WSMessageHandler
+	)
+
+	defer utils.RecoverAll(func(err interface{}) {
+		logger.Error("WSListener::onMessageReceived error: %s", err)
+	})
+
+	client := ws.(*WSClient)
+	if client.isClosed() {
+		return
+	}
+
+	remoteAddress := client.RemoteAddress()
+
+	if handler, ok = h.handlers[m.MessageCode()]; !ok {
+		logger.Debug("handler for opcode %d not found, remote address: %s", m.MessageCode(), remoteAddress)
+		return
+	}
+
+	start := time.Now()
+
+	defer func() {
+		timeSpentInHandler := time.Since(start).Seconds()
+		if timeSpentInHandler > 3.0 {
+			logger.Warn("%s handling time exceeded %f secs for msg_id %d op-code: %d", remoteAddress, timeSpentInHandler, m.MessageID(), m.MessageCode())
+		}
+	}()
+
+	if fe := handler(m, ws); fe != nil {
+		logger.Debug("error handling message opcode: %d, remote address %s: %s", m.MessageCode(), remoteAddress, fe.Error())
+	}
+}
+
+func (h *WSListener) onDisconnected(ws IWSClient) {
+	h.registry.UnregisterClient(ws)
+}

@@ -1,0 +1,77 @@
+{{define "head"}}
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+
+    <title>Sample</title>
+    <meta name="description" content="Sample Page">
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Varela+Round&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <!-- Custom CSS -->
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        header, footer {
+            flex-shrink: 0;
+        }
+
+        main {
+            flex: 1 1 auto;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .plane-label {
+            font-size: 14px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        .plane-icon {
+            font-size: 28px;
+            line-height: 28px;
+            text-align: center;
+            /* prevent the icon from being huge */
+            width: 32px;
+            height: 32px;
+        }
+
+        .plane-air {
+            color: green;
+            text-shadow: 0 0 1px #000;
+        }
+
+        .plane-ground {
+            color: red;
+            text-shadow: 0 0 1px #000;
+        }
+    </style>
+
+</head>
+
+{{end}}
