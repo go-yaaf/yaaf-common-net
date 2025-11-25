@@ -19,10 +19,11 @@ import (
 
 const (
 	UNKNOWN int = 0
-	APIKEY      = 1
-	TOKEN       = 3
+	APIKEY  int = 1
+	TOKEN   int = 3
 )
 
+// BaseEndPoint is a base structure for all REST endpoints
 type BaseEndPoint struct{}
 
 // GetTokenData extract security token data from Authorization header

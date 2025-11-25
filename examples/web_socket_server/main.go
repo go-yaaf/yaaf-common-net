@@ -37,7 +37,7 @@ func main() {
 	webServer.WithSecrets(secret, signing)
 
 	// Enforce checking the name from the API Key
-	webServer.WithAppName("rest-server-example")
+	webServer.WithAppName("websocket-server-example")
 
 	// Add REST endpoints
 	webServer.AddWebSocketEndpoints(airplane_config.NewAirplanesSocketEndPoint())

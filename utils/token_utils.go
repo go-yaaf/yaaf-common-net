@@ -15,12 +15,13 @@ import (
 	. "github.com/go-yaaf/yaaf-common-net/model"
 )
 
-var tokenApiSecret = []byte{0x47, 0x30, 0x30, 0x78, 0x77, 0x30, 0x72, 0x6b, 0x4c, 0x69, 0x67, 0x68, 0x74, 0x63, 0x4c, 0x40, 0x75, 0x64, 0x53, 0x33, 0x43, 0x52, 0x33, 0x54, 0x4b, 0x33, 0x59, 0x74, 0x30, 0x4b, 0x65, 0x4f}
-var tokenSigningKy = []byte{0x40, 0x79, 0x61, 0x46, 0x6c, 0x69, 0x67, 0x68, 0x74, 0x73, 0x40, 0x75, 0x64, 0x53, 0x33, 0x43, 0x52, 0x33, 0x54, 0x40, 0x50, 0x69, 0x4b, 0x33, 0x59, 0x74, 0x30, 0x4b, 0x65, 0x4f, 0x33, 0x32}
+var tokenSecret = []byte{0x47, 0x30, 0x30, 0x78, 0x77, 0x30, 0x72, 0x6b, 0x4c, 0x69, 0x67, 0x68, 0x74, 0x63, 0x4c, 0x40, 0x75, 0x64, 0x53, 0x33, 0x43, 0x52, 0x33, 0x54, 0x4b, 0x33, 0x59, 0x74, 0x30, 0x4b, 0x65, 0x4f}
+var signingKy = []byte{0x40, 0x79, 0x61, 0x46, 0x6c, 0x69, 0x67, 0x68, 0x74, 0x73, 0x40, 0x75, 0x64, 0x53, 0x33, 0x43, 0x52, 0x33, 0x54, 0x40, 0x50, 0x69, 0x4b, 0x33, 0x59, 0x74, 0x30, 0x4b, 0x65, 0x4f, 0x33, 0x32}
 
-//var tokenApiSecret = []byte{}
-//var tokenSigningKy = []byte{}
+//var tokenSecret = []byte{}
+//var signingKy = []byte{}
 
+// TokenUtilsStruct is a structure for token utilities
 type TokenUtilsStruct struct {
 }
 
@@ -36,21 +37,23 @@ func TokenUtils() *TokenUtilsStruct {
 	return tokenUtilsSingleton
 }
 
+// WithSecrets sets the API secret and signing key
 func (t *TokenUtilsStruct) WithSecrets(apiSecret, signingKey string) *TokenUtilsStruct {
 	if len(apiSecret) < 32 {
 		panic(errors.New("api secret too short"))
 	}
-	tokenApiSecret = []byte(apiSecret[:32])
+	tokenSecret = []byte(apiSecret[:32])
 
 	if len(signingKey) < 32 {
 		panic(errors.New("signing key too short"))
 	}
-	tokenSigningKy = []byte(signingKey[:32])
+	signingKy = []byte(signingKey[:32])
 	return t
 }
 
 // region Access Token parsing helpers ---------------------------------------------------------------------------------
 
+// TokenClaims represents the claims in a JWT token
 type TokenClaims struct {
 	jwt.RegisteredClaims
 	TokenData
@@ -68,7 +71,7 @@ func (t *TokenUtilsStruct) CreateToken(td *TokenData) (string, error) {
 	claims.Subject = td.SubjectId
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(tokenSigningKy)
+	return token.SignedString(signingKy)
 }
 
 // ParseToken rebuild Token Data structure from JWT token
@@ -76,7 +79,7 @@ func (t *TokenUtilsStruct) ParseToken(tokenString string) (*TokenData, error) {
 
 	// Parse the token
 	token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return tokenSigningKy, nil
+		return signingKy, nil
 	})
 
 	if err != nil {
@@ -104,20 +107,21 @@ func (t *TokenUtilsStruct) ParseToken(tokenString string) (*TokenData, error) {
 
 // CreateApiKey generate API Key from application name
 func (t *TokenUtilsStruct) CreateApiKey(appName string) (string, error) {
-
+	t.ensureKeys()
 	return encrypt(appName)
 }
 
 // ParseApiKey extract application name from API key
 func (t *TokenUtilsStruct) ParseApiKey(apiKey string) (string, error) {
+	t.ensureKeys()
 	return decrypt(apiKey)
 }
 
 func (t *TokenUtilsStruct) ensureKeys() {
-	if len(tokenApiSecret) < 32 {
+	if len(tokenSecret) < 32 {
 		panic(errors.New("encryption secret is not set, please use WithSecrets to set it"))
 	}
-	if len(tokenSigningKy) < 32 {
+	if len(signingKy) < 32 {
 		panic(errors.New("encryption signing key is not set, please use WithSecrets to set it"))
 	}
 }
@@ -129,7 +133,7 @@ func (t *TokenUtilsStruct) ensureKeys() {
 // encrypt string using AES and return base64
 func encrypt(value string) (string, error) {
 
-	block, err := aes.NewCipher(tokenApiSecret)
+	block, err := aes.NewCipher(tokenSecret)
 	if err != nil {
 		return "", err
 	}
@@ -141,7 +145,7 @@ func encrypt(value string) (string, error) {
 		return "", er
 	}
 
-	stream := cipher.NewCFBEncrypter(block, iv)
+	stream := cipher.NewCTR(block, iv)
 	stream.XORKeyStream(cipherText[aes.BlockSize:], []byte(value))
 
 	return hex.EncodeToString(cipherText), nil
@@ -154,7 +158,7 @@ func decrypt(value string) (string, error) {
 		return "", err
 	}
 
-	block, err := aes.NewCipher(tokenApiSecret)
+	block, err := aes.NewCipher(tokenSecret)
 	if err != nil {
 		return "", err
 	}
@@ -166,7 +170,7 @@ func decrypt(value string) (string, error) {
 	iv := cipherTextBytes[:aes.BlockSize]
 	cipherTextBytes = cipherTextBytes[aes.BlockSize:]
 
-	stream := cipher.NewCFBDecrypter(block, iv)
+	stream := cipher.NewCTR(block, iv)
 	stream.XORKeyStream(cipherTextBytes, cipherTextBytes)
 
 	return string(cipherTextBytes), nil

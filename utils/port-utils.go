@@ -11,6 +11,7 @@ type portDesc entity.Tuple[string, string]
 var portUtilsOnce sync.Once
 var portUtilsInst *PortUtilsStruct = nil
 
+// PortUtilsStruct is a structure for port utilities that provides methods to get well-known port name and description
 type PortUtilsStruct struct {
 	portsMap map[int]portDesc
 }

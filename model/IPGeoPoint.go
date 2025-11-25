@@ -4,10 +4,11 @@ import "fmt"
 
 // IPGeoPoint represents a WGS85 geographic location of an IP address
 type IPGeoPoint struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
+	Latitude  float64 `json:"latitude"`  // Latitude
+	Longitude float64 `json:"longitude"` // Longitude
 }
 
+// NewIPGeoPoint creates a new IPGeoPoint instance
 func NewIPGeoPoint(lon, lat float64) *IPGeoPoint {
 	return &IPGeoPoint{
 		Latitude:  lat,

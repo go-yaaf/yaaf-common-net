@@ -3,10 +3,11 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/go-yaaf/yaaf-common/logger"
 	"github.com/go-yaaf/yaaf-common/utils"
 	"github.com/gorilla/websocket"
-	"time"
 )
 
 // region Web Socket client structure and fluent API configuration -----------------------------------------------------
@@ -21,6 +22,7 @@ type WSClient struct {
 	send           chan []byte
 }
 
+// WSClientConfig is the configuration for a web socket client
 type WSClientConfig struct {
 	Id           string
 	WsConn       *websocket.Conn
@@ -28,6 +30,7 @@ type WSClientConfig struct {
 	onDisconnect DisconnectedCb
 }
 
+// NewWsClient creates a new web socket client
 func NewWsClient(clientId string, conn *websocket.Conn, onDisconnect DisconnectedCb) IWSClient {
 
 	ws := &WSClient{
@@ -44,6 +47,7 @@ func NewWsClient(clientId string, conn *websocket.Conn, onDisconnect Disconnecte
 	return ws
 }
 
+// ID returns the client ID
 func (c *WSClient) ID() string {
 	return c.id
 }
@@ -73,11 +77,13 @@ func (c *WSClient) SendRaw(buffer []byte) error {
 	}
 }
 
+// Close closes the connection
 func (c *WSClient) Close() error {
 	close(c.send)
 	return c.conn.Close()
 }
 
+// RemoteAddress returns the remote address of the client
 func (c *WSClient) RemoteAddress() (ra string) {
 	if c.conn != nil {
 		ra = c.conn.RemoteAddr().String()
@@ -98,7 +104,7 @@ func (c *WSClient) run() {
 			if msg, fe := c.decoder.Decode(rawMessage); fe != nil {
 				logger.Error("error decoding received message from: [%s]: error: %s message dump: %s", c.id, fe.Error(), string(rawMessage))
 			} else {
-				if c.handlers != nil && len(c.handlers) > 0 {
+				if len(c.handlers) > 0 {
 					if mh, ok := c.handlers[msg.MessageCode()]; ok {
 						go func() { _ = mh.Handler(msg, c) }()
 						return

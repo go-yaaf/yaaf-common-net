@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,6 +15,7 @@ type RestEntry struct {
 	Role    int             // Role flags
 }
 
+// ID returns the unique ID of the REST entry
 func (b *RestEntry) ID(base string) string {
 	return fmt.Sprintf("%s %s%s", b.Method, base, b.Path)
 }

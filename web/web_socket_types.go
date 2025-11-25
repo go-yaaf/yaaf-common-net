@@ -19,6 +19,7 @@ type IWSMessage interface {
 
 // region Web Socket message header ------------------------------------------------------------------------------------
 
+// WSMessageHeader is a common structure for all web socket messages
 type WSMessageHeader struct {
 	OpCode    int
 	MessageId uint64
@@ -43,8 +44,10 @@ type WSPingMessage struct {
 	WSMessageHeader
 }
 
+// Payload returns the message payload
 func (mp WSPingMessage) Payload() interface{} { return nil }
 
+// NewWsPingMessage creates a new ping message
 func NewWsPingMessage() IWSMessage {
 	return WSPingMessage{WSMessageHeader: WSMessageHeader{OpCode: WsPingOpCode}}
 }
@@ -55,17 +58,20 @@ var pingMessage = NewWsPingMessage()
 
 // region Web Socket Raw message ---------------------------------------------------------------------------------------
 
+// WSRawMessage is a raw message structure
 type WSRawMessage struct {
 	WSMessageHeader
 	Body []byte
 }
 
+// Payload returns the message payload
 func (m *WSRawMessage) Payload() any { return m.Body }
 
 // endregion
 
 // region Web Socket message decoder -----------------------------------------------------------------------------------
 
+// IMessageDecoder is a message decoder interface
 type IMessageDecoder interface {
 	Encode(message IWSMessage) ([]byte, error)
 	Decode(buffer []byte) (IWSMessage, error)
@@ -88,6 +94,7 @@ type DisconnectedCb func(IWSClient)
 
 // region Web Socket client --------------------------------------------------------------------------------------------
 
+// WSConnectParams is the configuration for a web socket connection
 type WSConnectParams struct {
 	Url                string      // Full url (int is case path and host are ignored)
 	Path               string      // URL path segment
@@ -110,28 +117,35 @@ type IWSClient interface {
 
 // region Message factory and default message decoder (JSON) -----------------------------------------------------------
 
+// MessageFactoryFunc is a function that creates a new message instance
 type MessageFactoryFunc func() IWSMessage
 
 var messageFactories = map[int]MessageFactoryFunc{}
 
+// AddMessageFactory adds a message factory for a given opcode
 func AddMessageFactory(opcode int, f MessageFactoryFunc) {
 	messageFactories[opcode] = f
 }
 
+// GetMessageFactoryFunc returns the message factory for a given opcode
 func GetMessageFactoryFunc(opcode int) MessageFactoryFunc {
 	return messageFactories[opcode]
 }
 
+// JsonDecoder is a JSON message decoder
 type JsonDecoder struct{}
 
+// NewJsonDecoder creates a new JSON message decoder
 func NewJsonDecoder() IMessageDecoder {
 	return &JsonDecoder{}
 }
 
+// Encode encodes a message to JSON
 func (_ JsonDecoder) Encode(m IWSMessage) (result []byte, err error) {
 	return json.Marshal(m)
 }
 
+// Decode decodes a JSON message
 func (_ JsonDecoder) Decode(buffer []byte) (msg IWSMessage, err error) {
 
 	bm := &WSMessageHeader{}
@@ -160,8 +174,10 @@ func (_ JsonDecoder) Decode(buffer []byte) (msg IWSMessage, err error) {
 
 // endregion
 
+// WSMessageHandler is a function that handles a web socket message
 type WSMessageHandler func(m IWSMessage, rw IWSClient) error
 
+// WSEntry is a web socket entry configuration
 type WSEntry struct {
 	OpCode  int                // Message op-code
 	Message MessageFactoryFunc // Message factory function
@@ -185,4 +201,5 @@ type IWSClientRegistry interface {
 	Broadcast(msg []byte)
 }
 
+// WSClientFactory is a function that creates a new web socket client
 type WSClientFactory func() IWSClient

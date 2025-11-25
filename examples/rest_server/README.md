@@ -1,28 +1,39 @@
 # REST Server Example
 
 This example demonstrate how to configure and run REST server using the **yaaf-common-net** package.
+
+## Use Case
+This example demonstrates a web server exposing 2 groups of REST endpoints:
+* Group 1: hero - exposing the following endpoints:
+  * ```/v1/hero//heroes``` endpoint with several REST methods (GET | POST | PUT | PATCH | DELETE) to manage Heroes
+  * ```/v1/hero/villains``` endpoint with several REST methods (GET | POST | PUT | PATCH | DELETE) to manage Villains
+* Group 2: sample - exposing the following endpoints:
+    * ```/v1/sample/accounts``` endpoint with several REST methods (GET | POST | PUT | PATCH | DELETE) to manage accounts
+    * ```/v1/sample/users``` endpoint with several REST methods (GET | POST | PUT | PATCH | DELETE) to manage users
+  
+## REST Server configuration
 In this example, we will configure REST server in the ```main.go``` file using the following steps:
 
-	// Create the new instance of the REST server
-	restServer := web.NewRESTServer()
+	// Create the new instance of the Web server
+	webServer := web.NewWebServer()
 
 	// Set API Version ton inject in the X-API-VERSION header (usually it will be provided by the configuration)
-	restServer.WithAPIVersion("1.0.1")
+	webServer.WithAPIVersion("1.0.1")
 
 	// Set encryption secrets
-	restServer.WithSecrets(secret, signing)
+	webServer.WithSecrets(secret, signing)
 
 	// Enforce checking the name from the API Key
-	restServer.WithAppName("rest-server-example")
+	webServer.WithAppName("rest-server-example")
 
 	// Add REST endpoints for hero group
-	restServer.AddEndpoints(hero.NewListOfHeroEndPoints()...)
+	webServer.AddRESTEndpoints(hero.NewListOfHeroEndPoints()...)
 
 	// Add REST endpoints for sample group
-	restServer.AddEndpoints(sample.NewListOfSampleEndPoints()...)
+	webServer.AddRESTEndpoints(sample.NewListOfSampleEndPoints()...)
 
 	// Add static documentation endpoint
-	restServer.AddStaticEndpoint("/doc", "./doc")
+	webServer.AddStaticEndpoint("/doc", "./doc")
 
 To configure REST endpoint, look at the file: **hero/heroes_endpoint.go**:
 

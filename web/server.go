@@ -2,10 +2,11 @@ package web
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/go-yaaf/yaaf-common/entity"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-yaaf/yaaf-common/entity"
 
 	. "github.com/go-yaaf/yaaf-common-net/model"
 	"github.com/go-yaaf/yaaf-common-net/utils"
@@ -19,6 +20,7 @@ var whiteList []string = []string{
 // region REST server structure and factory method ---------------------------------------------------------------------
 var serverInst *Server = nil
 
+// Server is the main web server structure
 type Server struct {
 	engine        *gin.Engine
 	version       string
@@ -230,6 +232,7 @@ func (s *Server) AddRESTEndpoints(endpoints ...RestEndpoint) *Server {
 	return s
 }
 
+// CorsOptions handles CORS options
 func CorsOptions(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, DELETE, POST, PUT, PATCH")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")

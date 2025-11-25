@@ -2,11 +2,12 @@ package web
 
 import (
 	"fmt"
+	"net"
+	"net/http"
+
 	"github.com/go-yaaf/yaaf-common/logger"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"net"
-	"net/http"
 )
 
 var upgrader = websocket.Upgrader{
@@ -18,12 +19,14 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// WSListener is a wrapper for web socket listener
 type WSListener struct {
 	registry IWSClientRegistry
 	decoder  IMessageDecoder
 	handlers map[int]WSEntry
 }
 
+// NewListener factory method
 func NewListener(registry IWSClientRegistry, cfg IWSEndpointConfig) (wsh *WSListener) {
 	wsh = &WSListener{
 		registry: registry,
@@ -39,6 +42,7 @@ func NewListener(registry IWSClientRegistry, cfg IWSEndpointConfig) (wsh *WSList
 	return
 }
 
+// ListenForWSConnections Listen for web socket connections
 func (h *WSListener) ListenForWSConnections(w http.ResponseWriter, r *http.Request) {
 
 	connectedClients := h.registry.ConnectedClients()

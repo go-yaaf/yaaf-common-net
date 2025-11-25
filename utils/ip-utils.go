@@ -2,17 +2,19 @@ package utils
 
 import (
 	"context"
-	"github.com/go-yaaf/yaaf-common-net/model"
-	"github.com/go-yaaf/yaaf-common/utils/collections"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/go-yaaf/yaaf-common-net/model"
+	"github.com/go-yaaf/yaaf-common/utils/collections"
 
 	"github.com/ip2location/ip2location-io-go/ip2locationio"
 )
 
 var wellKnownDNS []string
 
+// IPUtilsStruct is a structure for IP utilities
 type IPUtilsStruct struct {
 	apiKey string
 }
