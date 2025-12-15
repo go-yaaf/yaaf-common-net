@@ -29,6 +29,7 @@ type Server struct {
 	entries       map[string]RestEntry         // Map of REST path to REST Entries
 	registries    map[string]IWSClientRegistry // Map of web-socket groups name to web-socket client registry
 	skipList      map[string]int               // Skip validation (API KEY and TOKEN) list
+	headers       map[string]string            // Custom headers
 }
 
 // NewWebServer Factory method
@@ -51,6 +52,7 @@ func NewWebServer() *Server {
 		entries:    make(map[string]RestEntry),
 		registries: make(map[string]IWSClientRegistry),
 		skipList:   make(map[string]int),
+		headers:    make(map[string]string),
 	}
 	serverInst = server
 	return serverInst
@@ -71,6 +73,12 @@ func (s *Server) WithAPIVersion(version string) *Server {
 // WithSecrets set token encryption secrets
 func (s *Server) WithSecrets(apiSecret, signingKey string) *Server {
 	utils.TokenUtils().WithSecrets(apiSecret, signingKey)
+	return s
+}
+
+// WithHeader override HTTP headers for CORS manipulation
+func (s *Server) WithHeader(header, value string) *Server {
+	s.headers[header] = value
 	return s
 }
 
@@ -416,10 +424,15 @@ func customRecovery(c *gin.Context, recovered any) {
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, accept, origin, Cache-Control, X-Requested-With, Content-Disposition, Content-Filename")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, Authorization, X-CSRF-Token, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, accept, origin, Cache-Control, X-Requested-With, Content-Disposition, Content-Filename")
 		c.Writer.Header().Set("Access-Control-Exposed-Headers", "X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, Content-Disposition, Content-Filename")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
 		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
+
+		// Add / Override custom headers
+		for k, v := range serverInst.headers {
+			c.Writer.Header().Set(k, v)
+		}
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
