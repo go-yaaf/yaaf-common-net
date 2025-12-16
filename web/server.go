@@ -426,11 +426,11 @@ func getTokenData(c *gin.Context) *TokenData {
 
 	token := c.GetHeader("X-ACCESS-TOKEN")
 	if len(token) == 0 {
-		_ = c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("invalid auth token"))
+		_ = c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("invalid auth toke, length is zero"))
 		return nil
 	}
 	if td, err := utils.TokenUtils().ParseToken(token); err != nil {
-		_ = c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("invalid auth token"))
+		_ = c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("invalid auth token, error parsing token: %s", err.Error()))
 		return nil
 	} else {
 		return td
