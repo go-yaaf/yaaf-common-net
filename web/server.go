@@ -256,7 +256,7 @@ func (s *Server) AddRESTEndpoints(endpoints ...RestEndpoint) *Server {
 			group.Handle(entry.Method, entry.Path, entry.Handler)
 			s.entries[entry.ID(group.BasePath())] = entry
 		}
-		//group.OPTIONS("/", CorsOptions)
+		group.OPTIONS("/", CorsOptions)
 
 		// Apply middlewares
 		group.Use(
@@ -271,11 +271,11 @@ func (s *Server) AddRESTEndpoints(endpoints ...RestEndpoint) *Server {
 }
 
 // CorsOptions handles CORS options
-//func CorsOptions(c *gin.Context) {
-//	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, DELETE, POST, PUT, PATCH")
-//	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-//	c.Next()
-//}
+func CorsOptions(c *gin.Context) {
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET,DELETE,POST,PUT,PATCH")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	c.Next()
+}
 
 // AddStaticEndpoint add static file endpoint (for documentation)
 func (s *Server) AddStaticEndpoint(path, folder string) *Server {
