@@ -259,7 +259,7 @@ func (s *Server) AddRESTEndpoints(endpoints ...RestEndpoint) *Server {
 		//group.OPTIONS("/", CorsOptions)
 
 		// Apply middlewares
-		group.OPTIONS("/",
+		group.Use(
 			corsMiddleware(),
 			disableCache(),
 			gin.CustomRecovery(customRecovery),
