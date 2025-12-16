@@ -38,14 +38,16 @@ func NewWebServer() *Server {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.Default()
 
-	engine.Use(
-		corsMiddleware(),
-		disableCache(),
-		gin.CustomRecovery(customRecovery),
-		apiKeyValidator(),
-		tokenValidator(),
-		apiVersion(),
-	)
+	// The middlewares should be applied per group
+	//engine.Use(
+	//	corsMiddleware(),
+	//	disableCache(),
+	//	gin.CustomRecovery(customRecovery),
+	//	apiKeyValidator(),
+	//	tokenValidator(),
+	//	apiVersion(),
+	//)
+
 	server := &Server{
 		engine:     engine,
 		version:    "1.0.0",
@@ -235,17 +237,35 @@ func (s *Server) AddRESTEndpoints(endpoints ...RestEndpoint) *Server {
 			group.Handle(entry.Method, entry.Path, entry.Handler)
 			s.entries[entry.ID(group.BasePath())] = entry
 		}
-		group.OPTIONS("/", CorsOptions)
+		//group.OPTIONS("/", CorsOptions)
+
+		// Apply middlewares
+		group.OPTIONS("/",
+			corsMiddleware(),
+			disableCache(),
+			gin.CustomRecovery(customRecovery),
+			apiKeyValidator(),
+			tokenValidator(),
+			apiVersion())
+
+		//engine.Use(
+		//	corsMiddleware(),
+		//	disableCache(),
+		//	gin.CustomRecovery(customRecovery),
+		//	apiKeyValidator(),
+		//	tokenValidator(),
+		//	apiVersion(),
+		//)
 	}
 	return s
 }
 
 // CorsOptions handles CORS options
-func CorsOptions(c *gin.Context) {
-	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, DELETE, POST, PUT, PATCH")
-	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	c.Next()
-}
+//func CorsOptions(c *gin.Context) {
+//	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, DELETE, POST, PUT, PATCH")
+//	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+//	c.Next()
+//}
 
 // AddStaticEndpoint add static file endpoint (for documentation)
 func (s *Server) AddStaticEndpoint(path, folder string) *Server {
@@ -298,6 +318,8 @@ func (s *Server) AddWebSocketEndpoints(endpoints ...IWSEndpointConfig) *Server {
 // Fetch API key from the header and check it
 func apiKeyValidator() gin.HandlerFunc {
 	return func(c *gin.Context) {
+
+		// Skip validator if it is not a REST request
 
 		// Skip OPTIONS
 		if c.Request.Method == "OPTIONS" {
@@ -423,15 +445,25 @@ func customRecovery(c *gin.Context, recovered any) {
 // Enable CORS
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, Authorization, X-CSRF-Token, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, accept, origin, Cache-Control, X-Requested-With, Content-Disposition, Content-Filename")
-		c.Writer.Header().Set("Access-Control-Exposed-Headers", "X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, Content-Disposition, Content-Filename")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
-		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 
-		// Add / Override custom headers
+		// Add custom headers
 		for k, v := range serverInst.headers {
 			c.Writer.Header().Set(k, v)
+		}
+
+		// Add default headers
+		defaultHeaders := map[string]string{
+			"Access-Control-Allow-Origin":    "*",
+			"Access-Control-Allow-Headers":   "Content-Type, Content-Length, Accept-Encoding, Authorization, X-CSRF-Token, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, accept, origin, Cache-Control, X-Requested-With, Content-Disposition, Content-Filename",
+			"Access-Control-Exposed-Headers": "X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, Content-Disposition, Content-Filename",
+			"Access-Control-Allow-Methods":   "GET, POST, PUT, DELETE, OPTIONS, HEAD",
+			"Access-Control-Max-Age":         "86400",
+		}
+
+		for k, v := range defaultHeaders {
+			if _, ok := serverInst.headers[k]; !ok {
+				c.Writer.Header().Set(k, v)
+			}
 		}
 
 		if c.Request.Method == "OPTIONS" {
