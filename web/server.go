@@ -285,8 +285,9 @@ func (s *Server) AddStaticEndpoint(path, folder string) *Server {
 		s.engine.NoRoute(func(c *gin.Context) {
 			c.File(folder + "/index.html")
 		})
+	} else {
+		s.engine.Static(path, folder)
 	}
-	s.engine.Static(path, folder)
 	return s
 }
 
