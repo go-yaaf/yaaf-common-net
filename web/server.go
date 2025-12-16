@@ -2,7 +2,10 @@ package web
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +33,9 @@ type Server struct {
 	registries    map[string]IWSClientRegistry // Map of web-socket groups name to web-socket client registry
 	skipList      map[string]int               // Skip validation (API KEY and TOKEN) list
 	headers       map[string]string            // Custom headers
+	proxyPath     string                       // Custom reverse proxy path
+	proxyTarget   string                       // Custom reverse proxy target
+	proxyHeaders  map[string]string            // Custom reverse proxy headers
 }
 
 // NewWebServer Factory method
@@ -87,6 +93,14 @@ func (s *Server) WithHeader(header, value string) *Server {
 // WithHtmlTemplates sets the global HTML templates path
 func (s *Server) WithHtmlTemplates(path string) *Server {
 	s.templatesPath = path
+	return s
+}
+
+// WithReverseProxy sets revers proxy
+func (s *Server) WithReverseProxy(path string, target string, headers map[string]string) *Server {
+	s.proxyPath = path
+	s.proxyTarget = target
+	s.proxyHeaders = headers
 	return s
 }
 
@@ -200,6 +214,11 @@ func (s *Server) matchTemplatePath(template, actual string) bool {
 func (s *Server) Start(port int) error {
 
 	_ = s.engine.SetTrustedProxies(nil)
+
+	// Proxy API requests to backend server
+	if len(s.proxyPath) > 0 {
+		s.engine.Any(s.proxyPath, reverseProxy(s.proxyTarget, s.proxyHeaders))
+	}
 
 	if len(s.templatesPath) > 0 {
 		s.engine.LoadHTMLGlob(s.templatesPath)
@@ -479,6 +498,34 @@ func corsMiddleware() gin.HandlerFunc {
 func apiVersion() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-API-VERSION", "s.version")
+	}
+}
+
+// Create a reverse proxy handler
+func reverseProxy(target string, headers map[string]string) gin.HandlerFunc {
+	remote, err := url.Parse(target)
+	if err != nil {
+		log.Fatalf("Failed to parse proxy target: %v", err)
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(remote)
+
+	// Optional: Modify the request before forwarding
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		return nil
+	}
+
+	return func(c *gin.Context) {
+		// Update the original request
+		c.Request.URL.Scheme = remote.Scheme
+		c.Request.URL.Host = remote.Host
+		c.Request.Host = remote.Host
+
+		// inject custom header
+		for k, v := range headers {
+			c.Request.Header.Add(k, v)
+		}
+		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }
 
