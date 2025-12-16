@@ -463,11 +463,11 @@ func corsMiddleware() gin.HandlerFunc {
 
 		// Add default headers
 		defaultHeaders := map[string]string{
-			"Access-Control-Allow-Origin":    "*",
-			"Access-Control-Allow-Headers":   "Content-Type, Content-Length, Accept-Encoding, Authorization, X-CSRF-Token, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, accept, origin, Cache-Control, X-Requested-With, Content-Disposition, Content-Filename",
-			"Access-Control-Exposed-Headers": "X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, Content-Disposition, Content-Filename",
-			"Access-Control-Allow-Methods":   "GET, POST, PUT, DELETE, OPTIONS, HEAD",
-			"Access-Control-Max-Age":         "86400",
+			"Access-Control-Allow-Origin":   "*",
+			"Access-Control-Allow-Methods":  "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+			"Access-Control-Allow-Headers":  "Content-Type, Authorization, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, X-Requested-With",
+			"Access-Control-Expose-Headers": "X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, Content-Disposition, Content-Filename",
+			"Access-Control-Max-Age":        "86400",
 		}
 
 		for k, v := range defaultHeaders {
