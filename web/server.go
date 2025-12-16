@@ -456,6 +456,17 @@ func customRecovery(c *gin.Context, recovered any) {
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			// For development, you can restrict to localhost:4200 (recommended)
+			if origin == "http://localhost:4200" || origin == "http://localhost:3000" {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				c.Writer.Header().Set("Vary", "Origin")
+			}
+			// If you *really* want open CORS in dev, use "*" but don't use credentials
+			// c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+
 		// Add custom headers
 		for k, v := range serverInst.headers {
 			c.Writer.Header().Set(k, v)
