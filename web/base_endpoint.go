@@ -2,7 +2,6 @@ package web
 
 import (
 	"fmt"
-	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,7 +29,7 @@ type BaseEndPoint struct{}
 func (b *BaseEndPoint) GetTokenData(c *gin.Context) *TokenData {
 	token := c.GetHeader("X-ACCESS-TOKEN")
 	if td, err := utils.TokenUtils().ParseToken(token); err != nil {
-		_ = c.AbortWithError(http.StatusForbidden, fmt.Errorf("invalid access token"))
+		//_ = c.AbortWithError(http.StatusForbidden, fmt.Errorf("invalid access token"))
 		return nil
 	} else {
 		return td
