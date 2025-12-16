@@ -279,15 +279,7 @@ func (s *Server) AddRESTEndpoints(endpoints ...RestEndpoint) *Server {
 
 // AddStaticEndpoint add static file endpoint (for documentation)
 func (s *Server) AddStaticEndpoint(path, folder string) *Server {
-	// For a special case where the static endpoint is the root (path = "/")
-	// the NoRoute handler is a must to avoid collision with the other endpoints
-	if path == "/" {
-		s.engine.NoRoute(func(c *gin.Context) {
-			c.File(folder + "/index.html")
-		})
-	} else {
-		s.engine.Static(path, folder)
-	}
+	s.engine.Static(path, folder)
 	return s
 }
 
