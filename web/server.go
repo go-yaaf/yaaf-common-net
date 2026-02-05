@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -280,6 +281,33 @@ func CorsOptions(c *gin.Context) {
 // AddStaticEndpoint add static file endpoint (for documentation)
 func (s *Server) AddStaticEndpoint(path, folder string) *Server {
 	s.engine.Static(path, folder)
+	return s
+}
+
+// AddNFallbackPath add static file endpoint as fallback in case of 404
+func (s *Server) AddNFallbackPath(fallbackPath string) *Server {
+	s.engine.NoRoute(func(c *gin.Context) {
+		p := c.Request.URL.Path
+
+		// Let all unknown REST requests pass normally if it doesn't exist
+		for id := range s.entries {
+			idx := strings.LastIndex(id, " ")
+			restPath := id[idx+1:]
+
+			if strings.HasPrefix(p, restPath) {
+				c.Status(http.StatusNotFound)
+				return
+			}
+		}
+
+		// If the request looks like a file (has an extension), 404 it (or let Static handle)
+		if ext := path.Ext(p); ext != "" {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
+		c.File(fallbackPath)
+	})
 	return s
 }
 
