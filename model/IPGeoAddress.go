@@ -7,14 +7,16 @@ import (
 
 // IPGeoAddress represents a WGS85 geographic location
 type IPGeoAddress struct {
-	CountryCode string `json:"country_code"` // Country code (2 letters)
-	CountryName string `json:"country_name"` // Country name
-	RegionName  string `json:"region_name"`  // Region name
-	CityName    string `json:"city_name"`    // City name
-	ZipCode     string `json:"zip_code"`     // Zip code
-	TimeZone    string `json:"time_zone"`    // Time zone
-	ASName      string `json:"as_name"`      // Autonomous System name
-	ASNumber    string `json:"as_number"`    // Autonomous System number
+	CountryCode string  `json:"country_code"` // Country code (2 letters)
+	CountryName string  `json:"country_name"` // Country name
+	RegionName  string  `json:"region_name"`  // Region name
+	CityName    string  `json:"city_name"`    // City name
+	Latitude    float64 `json:"latitude"`     // Latitude
+	Longitude   float64 `json:"longitude"`    // Longitude
+	ZipCode     string  `json:"zip_code"`     // Zip code
+	TimeZone    string  `json:"time_zone"`    // Time zone
+	ASName      string  `json:"as_name"`      // Autonomous System name
+	ASNumber    string  `json:"as_number"`    // Autonomous System number
 }
 
 // NewIPGeoAddress creates a new IPGeoAddress instance
@@ -43,6 +45,18 @@ func (p *IPGeoAddress) WithRegionName(value string) *IPGeoAddress {
 // WithCityName sets the city name
 func (p *IPGeoAddress) WithCityName(value string) *IPGeoAddress {
 	p.CityName = value
+	return p
+}
+
+// WithLatitude sets the latitude
+func (p *IPGeoAddress) WithLatitude(value float64) *IPGeoAddress {
+	p.Latitude = value
+	return p
+}
+
+// WithLongitude sets the longitude
+func (p *IPGeoAddress) WithLongitude(value float64) *IPGeoAddress {
+	p.Longitude = value
 	return p
 }
 
@@ -80,8 +94,10 @@ func (p *IPGeoAddress) String(format string) string {
 		format = strings.ReplaceAll(format, "{country_name}", p.CountryName)
 		format = strings.ReplaceAll(format, "{region_name}", p.RegionName)
 		format = strings.ReplaceAll(format, "{city_name}", p.CityName)
+		format = strings.ReplaceAll(format, "{latitude}", fmt.Sprintf("%f", p.Latitude))
+		format = strings.ReplaceAll(format, "{longitude}", fmt.Sprintf("%f", p.Longitude))
 		format = strings.ReplaceAll(format, "{zip_code}", p.ZipCode)
-		format = strings.ReplaceAll(format, "{time_zone}", p.ZipCode)
+		format = strings.ReplaceAll(format, "{time_zone}", p.TimeZone)
 		format = strings.ReplaceAll(format, "{as_name}", p.ASName)
 		format = strings.ReplaceAll(format, "{as_number}", p.ASNumber)
 		return format
