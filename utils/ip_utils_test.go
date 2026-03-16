@@ -82,8 +82,8 @@ func TestLookupGeoAndAddressPreservesOrderAndRemovesDuplicates(t *testing.T) {
 	require.Len(t, result, 2)
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 
-	require.Equal(t, "Australia", result[0].CountryName)
-	require.Equal(t, "United States of America", result[1].CountryName)
+	require.Equal(t, "AU", result[0].CountryName)
+	require.Equal(t, "US", result[1].CountryName)
 	require.Equal(t, "1.1.1.1", result[0].IP)
 	require.Equal(t, "8.8.8.8", result[1].IP)
 	require.Equal(t, -27.4748, result[0].Latitude)
@@ -185,8 +185,8 @@ func TestLookupGeoAndAddressSkipsPrivateIPs(t *testing.T) {
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 	require.Equal(t, "1.1.1.1", result[0].IP)
 	require.Equal(t, "8.8.8.8", result[1].IP)
-	require.Equal(t, "Australia", result[0].CountryName)
-	require.Equal(t, "United States of America", result[1].CountryName)
+	require.Equal(t, "AU", result[0].CountryName)
+	require.Equal(t, "US", result[1].CountryName)
 }
 
 func TestLookupGeoAndAddressReturnsEmptyForOnlyPrivateIPs(t *testing.T) {
@@ -311,8 +311,8 @@ func TestLookupGeoAndAddressFallsBackToSingleLookupOnBulkUnauthorized(t *testing
 	require.Equal(t, int32(2), atomic.LoadInt32(&singleRequests))
 	require.Equal(t, "1.1.1.1", result[0].IP)
 	require.Equal(t, "8.8.8.8", result[1].IP)
-	require.Equal(t, "Australia", result[0].CountryName)
-	require.Equal(t, "United States of America", result[1].CountryName)
+	require.Equal(t, "AU", result[0].CountryName)
+	require.Equal(t, "US", result[1].CountryName)
 }
 
 func TestLookupGeoAndAddressDoesNotFallbackOnBulkServerError(t *testing.T) {
