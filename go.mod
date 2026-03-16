@@ -4,7 +4,7 @@ module github.com/go-yaaf/yaaf-common-net
 // DO NNOT change this version since later versions include breaking changes
 
 go 1.24.0
-
+  
 require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-yaaf/yaaf-common v1.2.181

@@ -7,6 +7,7 @@ import (
 
 // IPGeoAddress represents a WGS85 geographic location
 type IPGeoAddress struct {
+	IP          string  `json:"ip"`           // IP address
 	CountryCode string  `json:"country_code"` // Country code (2 letters)
 	CountryName string  `json:"country_name"` // Country name
 	RegionName  string  `json:"region_name"`  // Region name
@@ -22,6 +23,12 @@ type IPGeoAddress struct {
 // NewIPGeoAddress creates a new IPGeoAddress instance
 func NewIPGeoAddress() *IPGeoAddress {
 	return &IPGeoAddress{}
+}
+
+// WithIP sets the IP address
+func (p *IPGeoAddress) WithIP(value string) *IPGeoAddress {
+	p.IP = value
+	return p
 }
 
 // WithCountryCode sets the country code
@@ -90,6 +97,7 @@ func (p *IPGeoAddress) String(format string) string {
 	if len(format) == 0 {
 		return fmt.Sprintf("[%s], %s, %s, %s %s)", p.ASName, p.CityName, p.RegionName, p.CountryName, p.ZipCode)
 	} else {
+		format = strings.ReplaceAll(format, "{ip}", p.IP)
 		format = strings.ReplaceAll(format, "{country_code}", p.CountryCode)
 		format = strings.ReplaceAll(format, "{country_name}", p.CountryName)
 		format = strings.ReplaceAll(format, "{region_name}", p.RegionName)

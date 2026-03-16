@@ -18,7 +18,7 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func TestLookupGeoAndAddressPreservesOrderAndDuplicates(t *testing.T) {
+func TestLookupGeoAndAddressPreservesOrderAndRemovesDuplicates(t *testing.T) {
 	var requests int32
 
 	client := &http.Client{
@@ -79,12 +79,13 @@ func TestLookupGeoAndAddressPreservesOrderAndDuplicates(t *testing.T) {
 
 	result, err := ipUtils.LookupGeoAndAddress([]string{"1.1.1.1", "8.8.8.8", "1.1.1.1"})
 	require.NoError(t, err)
-	require.Len(t, result, 3)
+	require.Len(t, result, 2)
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 
 	require.Equal(t, "Australia", result[0].CountryName)
 	require.Equal(t, "United States of America", result[1].CountryName)
-	require.Equal(t, "Australia", result[2].CountryName)
+	require.Equal(t, "1.1.1.1", result[0].IP)
+	require.Equal(t, "8.8.8.8", result[1].IP)
 	require.Equal(t, -27.4748, result[0].Latitude)
 	require.Equal(t, 153.017, result[0].Longitude)
 }
@@ -182,6 +183,8 @@ func TestLookupGeoAndAddressSkipsPrivateIPs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+	require.Equal(t, "1.1.1.1", result[0].IP)
+	require.Equal(t, "8.8.8.8", result[1].IP)
 	require.Equal(t, "Australia", result[0].CountryName)
 	require.Equal(t, "United States of America", result[1].CountryName)
 }
@@ -238,4 +241,107 @@ func TestLookupGeoAndAddressReturnsAPIError(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Contains(t, err.Error(), "Invalid API key.")
+}
+
+func TestLookupGeoAndAddressFallsBackToSingleLookupOnBulkUnauthorized(t *testing.T) {
+	var bulkRequests int32
+	var singleRequests int32
+
+	client := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			switch r.Method {
+			case http.MethodPost:
+				atomic.AddInt32(&bulkRequests, 1)
+
+				var ips []string
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&ips))
+				require.Equal(t, []string{"1.1.1.1", "8.8.8.8"}, ips)
+
+				return &http.Response{
+					StatusCode: http.StatusUnauthorized,
+					Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"error_code":401,"error_message":"Invalid API key or insufficient query."}}`))),
+					Header:     make(http.Header),
+				}, nil
+			case http.MethodGet:
+				atomic.AddInt32(&singleRequests, 1)
+
+				ip := r.URL.Query().Get("ip")
+				payload := bulkLookupResult{}
+				switch ip {
+				case "1.1.1.1":
+					payload = bulkLookupResult{
+						CountryCode: "AU",
+						CountryName: "Australia",
+					}
+				case "8.8.8.8":
+					payload = bulkLookupResult{
+						CountryCode: "US",
+						CountryName: "United States of America",
+					}
+				default:
+					t.Fatalf("unexpected fallback lookup for IP %s", ip)
+				}
+
+				buffer, err := json.Marshal(payload)
+				require.NoError(t, err)
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(buffer)),
+					Header:     make(http.Header),
+				}, nil
+			default:
+				t.Fatalf("unexpected method %s", r.Method)
+				return nil, nil
+			}
+		}),
+	}
+
+	ipUtils := &IPUtilsStruct{
+		apiKey:        "test-key",
+		httpClient:    client,
+		bulkBaseURL:   "https://bulk.ip2location.io/",
+		singleBaseURL: "https://api.ip2location.io/",
+	}
+
+	result, err := ipUtils.LookupGeoAndAddress([]string{"1.1.1.1", "192.168.1.10", "8.8.8.8", "1.1.1.1"})
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	require.Equal(t, int32(1), atomic.LoadInt32(&bulkRequests))
+	require.Equal(t, int32(2), atomic.LoadInt32(&singleRequests))
+	require.Equal(t, "1.1.1.1", result[0].IP)
+	require.Equal(t, "8.8.8.8", result[1].IP)
+	require.Equal(t, "Australia", result[0].CountryName)
+	require.Equal(t, "United States of America", result[1].CountryName)
+}
+
+func TestLookupGeoAndAddressDoesNotFallbackOnBulkServerError(t *testing.T) {
+	var singleRequests int32
+
+	client := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			if r.Method == http.MethodGet {
+				atomic.AddInt32(&singleRequests, 1)
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"error_code":500,"error_message":"Internal error"}}`))),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	ipUtils := &IPUtilsStruct{
+		apiKey:        "test-key",
+		httpClient:    client,
+		bulkBaseURL:   "https://bulk.ip2location.io/",
+		singleBaseURL: "https://api.ip2location.io/",
+	}
+
+	result, err := ipUtils.LookupGeoAndAddress([]string{"1.1.1.1"})
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Equal(t, int32(0), atomic.LoadInt32(&singleRequests))
+	require.Contains(t, err.Error(), "bulk lookup failed")
 }
