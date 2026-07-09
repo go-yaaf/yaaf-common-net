@@ -9,17 +9,19 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 
 	. "github.com/go-yaaf/yaaf-common-net/model"
 )
 
-var tokenSecret = []byte{0x47, 0x30, 0x30, 0x78, 0x77, 0x30, 0x72, 0x6b, 0x4c, 0x69, 0x67, 0x68, 0x74, 0x63, 0x4c, 0x40, 0x75, 0x64, 0x53, 0x33, 0x43, 0x52, 0x33, 0x54, 0x4b, 0x33, 0x59, 0x74, 0x30, 0x4b, 0x65, 0x4f}
-var signingKy = []byte{0x40, 0x79, 0x61, 0x46, 0x6c, 0x69, 0x67, 0x68, 0x74, 0x73, 0x40, 0x75, 0x64, 0x53, 0x33, 0x43, 0x52, 0x33, 0x54, 0x40, 0x50, 0x69, 0x4b, 0x33, 0x59, 0x74, 0x30, 0x4b, 0x65, 0x4f, 0x33, 0x32}
-
-//var tokenSecret = []byte{}
-//var signingKy = []byte{}
+// tokenSecret (AES key) and signingKy (JWT HMAC key) MUST be provided by the
+// application via TokenUtils().WithSecrets(...). They are intentionally empty by
+// default so the library fails closed instead of running on shared, source-visible
+// secrets that would allow anyone to forge tokens and API keys.
+var tokenSecret = []byte{}
+var signingKy = []byte{}
 
 // TokenUtilsStruct is a structure for token utilities
 type TokenUtilsStruct struct {
@@ -61,6 +63,8 @@ type TokenClaims struct {
 
 // CreateToken build JWT token from Token Data structure
 func (t *TokenUtilsStruct) CreateToken(td *TokenData) (string, error) {
+	t.ensureKeys()
+
 	claims := TokenClaims{}
 	claims.AccountId = td.AccountId
 	claims.SubjectId = td.SubjectId
@@ -70,17 +74,29 @@ func (t *TokenUtilsStruct) CreateToken(td *TokenData) (string, error) {
 	claims.ExpiresIn = td.ExpiresIn
 	claims.Subject = td.SubjectId
 
+	// Bind the registered "exp" claim to the caller-supplied expiration so the JWT
+	// library actually rejects expired tokens. ExpiresIn is an absolute epoch-millis
+	// timestamp; when it is 0 the token carries no expiry (backward compatible).
+	if td.ExpiresIn > 0 {
+		claims.ExpiresAt = jwt.NewNumericDate(time.UnixMilli(td.ExpiresIn))
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(signingKy)
 }
 
 // ParseToken rebuild Token Data structure from JWT token
 func (t *TokenUtilsStruct) ParseToken(tokenString string) (*TokenData, error) {
+	t.ensureKeys()
 
-	// Parse the token
+	// Parse the token, pinning the accepted signing algorithm to HS256 to prevent
+	// algorithm-substitution attacks (e.g. "none" or an asymmetric alg).
 	token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return signingKy, nil
-	})
+	}, jwt.WithValidMethods([]string{"HS256"}))
 
 	if err != nil {
 		return nil, err
@@ -130,7 +146,10 @@ func (t *TokenUtilsStruct) ensureKeys() {
 
 // region PRIVATE SECTION ----------------------------------------------------------------------------------------------
 
-// encrypt string using AES and return base64
+// encrypt string using authenticated AES-GCM and return hex.
+// The random nonce is prepended to the ciphertext. GCM provides both
+// confidentiality and integrity, so tampered/forged ciphertext is rejected on
+// decrypt (unlike the previous unauthenticated CTR mode).
 func encrypt(value string) (string, error) {
 
 	block, err := aes.NewCipher(tokenSecret)
@@ -138,20 +157,21 @@ func encrypt(value string) (string, error) {
 		return "", err
 	}
 
-	// Generate a new random IV
-	cipherText := make([]byte, aes.BlockSize+len(value))
-	iv := cipherText[:aes.BlockSize]
-	if _, er := io.ReadFull(rand.Reader, iv); er != nil {
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, er := io.ReadFull(rand.Reader, nonce); er != nil {
 		return "", er
 	}
 
-	stream := cipher.NewCTR(block, iv)
-	stream.XORKeyStream(cipherText[aes.BlockSize:], []byte(value))
-
+	cipherText := gcm.Seal(nonce, nonce, []byte(value), nil)
 	return hex.EncodeToString(cipherText), nil
 }
 
-// decrypt base64 string using AES
+// decrypt hex string using authenticated AES-GCM
 func decrypt(value string) (string, error) {
 	cipherTextBytes, err := hex.DecodeString(value)
 	if err != nil {
@@ -163,17 +183,23 @@ func decrypt(value string) (string, error) {
 		return "", err
 	}
 
-	if len(cipherTextBytes) < aes.BlockSize {
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(cipherTextBytes) < nonceSize {
 		return "", fmt.Errorf("cipher text too short")
 	}
 
-	iv := cipherTextBytes[:aes.BlockSize]
-	cipherTextBytes = cipherTextBytes[aes.BlockSize:]
+	nonce, cipherText := cipherTextBytes[:nonceSize], cipherTextBytes[nonceSize:]
+	plain, err := gcm.Open(nil, nonce, cipherText, nil)
+	if err != nil {
+		return "", err
+	}
 
-	stream := cipher.NewCTR(block, iv)
-	stream.XORKeyStream(cipherTextBytes, cipherTextBytes)
-
-	return string(cipherTextBytes), nil
+	return string(plain), nil
 }
 
 // endregion

@@ -49,13 +49,12 @@ type IPUtilsStruct struct {
 	singleBaseURL string
 }
 
-// IPUtils is a factory method that acts as a static member
+// IPUtils is a factory method that acts as a static member.
+// The IP2Location API key must be supplied by the caller; lookups return an
+// error when it is empty (no shared/hardcoded key is used).
 func IPUtils(apiKey string) *IPUtilsStruct {
-	if len(apiKey) == 0 {
-		apiKey = "A804D17F1EE16FBE269FE00610B95C97"
-	}
 	return &IPUtilsStruct{
-		apiKey:        apiKey,
+		apiKey:        strings.TrimSpace(apiKey),
 		httpClient:    defaultIPUtilsHTTPClient,
 		bulkBaseURL:   bulkLookupURL,
 		singleBaseURL: singleLookupURL,
@@ -97,6 +96,9 @@ func (e *bulkLookupRequestError) Error() string {
 
 // GeoLookupWKT invoke Geo IP and return location as WTK string
 func (t *IPUtilsStruct) GeoLookupWKT(ip string) (string, error) {
+	if strings.TrimSpace(t.apiKey) == "" {
+		return "", errors.New("IP2Location API key is not set")
+	}
 	config, err := ip2locationio.OpenConfiguration(t.apiKey)
 	if err != nil {
 		return "", err
@@ -116,7 +118,6 @@ func (t *IPUtilsStruct) GeoLookupWKT(ip string) (string, error) {
 
 // AddressLookup invoke Geo IP and return address as formatted string
 func (t *IPUtilsStruct) AddressLookup(ip string, format string) (string, error) {
-
 	if ipga, err := t.FullAddressLookup(ip); err != nil {
 		return "", err
 	} else {
@@ -126,6 +127,9 @@ func (t *IPUtilsStruct) AddressLookup(ip string, format string) (string, error) 
 
 // FullAddressLookup invoke Geo IP and return address as object
 func (t *IPUtilsStruct) FullAddressLookup(ip string) (*model.IPGeoAddress, error) {
+	if strings.TrimSpace(t.apiKey) == "" {
+		return nil, errors.New("IP2Location API key is not set")
+	}
 	config, err := ip2locationio.OpenConfiguration(t.apiKey)
 	if err != nil {
 		return nil, err
@@ -167,7 +171,7 @@ func (t *IPUtilsStruct) LookupGeoAndAddress(ips []string) ([]model.IPGeoAddress,
 		return []model.IPGeoAddress{}, nil
 	}
 	if strings.TrimSpace(t.apiKey) == "" {
-		t.apiKey = "A804D17F1EE16FBE269FE00610B95C97"
+		return nil, errors.New("IP2Location API key is not set")
 	}
 
 	uniqueIPs, err := normalizeLookupIPs(ips)

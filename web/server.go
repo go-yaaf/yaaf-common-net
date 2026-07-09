@@ -472,11 +472,11 @@ func disableCache() gin.HandlerFunc {
 	}
 }
 
-// Add custom recovery from any error
+// Add custom recovery from any error.
+// The recovered panic value is logged server-side but never written to the
+// response body, to avoid leaking internal details/stack context to clients.
 func customRecovery(c *gin.Context, recovered any) {
-	if err, ok := recovered.(string); ok {
-		c.String(http.StatusInternalServerError, fmt.Sprintf("error: %s", err))
-	}
+	log.Printf("recovered from panic while handling %s %s: %v", c.Request.Method, c.Request.URL.Path, recovered)
 	c.AbortWithStatus(http.StatusInternalServerError)
 }
 
@@ -500,9 +500,12 @@ func corsMiddleware() gin.HandlerFunc {
 			c.Writer.Header().Set(k, v)
 		}
 
-		// Add default headers
+		// Add default headers.
+		// NOTE: Access-Control-Allow-Origin is intentionally NOT defaulted to "*".
+		// A wildcard combined with the exposed Authorization/X-API-KEY/X-ACCESS-TOKEN
+		// headers below would let any site read credentials. Allowed origins are
+		// reflected explicitly above; set additional ones via Server.WithHeader.
 		defaultHeaders := map[string]string{
-			"Access-Control-Allow-Origin":   "*",
 			"Access-Control-Allow-Methods":  "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 			"Access-Control-Allow-Headers":  "Content-Type, Authorization, X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, X-Requested-With",
 			"Access-Control-Expose-Headers": "X-API-KEY, X-ACCESS-TOKEN, X-TIMEZONE, Content-Disposition, Content-Filename",
@@ -527,7 +530,7 @@ func corsMiddleware() gin.HandlerFunc {
 // Add response header with API version
 func apiVersion() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-API-VERSION", "s.version")
+		c.Header("X-API-VERSION", serverInst.version)
 	}
 }
 

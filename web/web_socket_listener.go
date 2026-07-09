@@ -4,19 +4,59 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/go-yaaf/yaaf-common/logger"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
+// allowedWSOrigins is the explicit allowlist of browser Origins permitted to open
+// a web-socket connection. When empty, only same-host and non-browser (no Origin
+// header) connections are accepted. Use SetAllowedWSOrigins to configure it.
+var allowedWSOrigins []string
+
+// SetAllowedWSOrigins configures the web-socket Origin allowlist (exact matches,
+// e.g. "https://app.example.com"). This prevents Cross-Site WebSocket Hijacking,
+// which the previous "always allow" policy exposed.
+func SetAllowedWSOrigins(origins ...string) {
+	allowedWSOrigins = origins
+}
+
+// checkWSOrigin enforces the web-socket Origin policy.
+func checkWSOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+
+	// Non-browser clients (native apps, server-to-server) send no Origin header.
+	if origin == "" {
+		return true
+	}
+
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+
+	// Same-host requests are always allowed.
+	if strings.EqualFold(u.Host, r.Host) {
+		return true
+	}
+
+	// Otherwise the Origin must be explicitly allowlisted.
+	for _, allowed := range allowedWSOrigins {
+		if strings.EqualFold(origin, allowed) {
+			return true
+		}
+	}
+	return false
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:    1024,
 	WriteBufferSize:   1024,
 	EnableCompression: true,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+	CheckOrigin:       checkWSOrigin,
 }
 
 // WSListener is a wrapper for web socket listener

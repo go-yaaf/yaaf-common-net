@@ -52,7 +52,11 @@ func (b *BaseEndPoint) GetTimezoneOffset(c *gin.Context) int {
 	}
 }
 
-// ResolveRemoteIp extract remote ip from HTTP header X-Forwarded-For
+// ResolveRemoteIp extract remote ip from HTTP header X-Forwarded-For.
+// SECURITY: X-Forwarded-For is client-controllable and trivially spoofable unless
+// a trusted reverse proxy overwrites it. Do NOT use the returned value for
+// security decisions (rate-limiting, allow/deny, audit trust) without validating
+// your proxy chain; prefer gin's c.ClientIP() with SetTrustedProxies configured.
 func (b *BaseEndPoint) ResolveRemoteIp(c *gin.Context) (ip string) {
 	if ip = c.GetHeader("X-Forwarded-For"); len(ip) == 0 {
 		ip = c.RemoteIP()
